@@ -10,4 +10,4 @@ This will be my Portfolio
 
 Edit your email, name and all project text in `src/data.js`. Pages are in `src/pages.jsx`, styles in `src/styles.css`.
 
-Retro page: export the Figma design as PNG, save it as `src/assets/retro-device.png` and it appears at `#/retro`.
+Retro page: export the Figma design as PNG, save it as `src/assets/retro-device.png` and it appears at `#/retro`..
