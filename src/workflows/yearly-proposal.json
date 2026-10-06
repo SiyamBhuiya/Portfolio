@@ -1,0 +1,494 @@
+{
+  "name": "Yearly Meeting Proposal Scheduler - Wassenger + Notion + Google Calendar",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 200,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Meeting_Status|status",
+              "condition": "equals",
+              "statusValue": "Not started"
+            },
+            {
+              "key": "Meeting_Status|status",
+              "condition": "equals",
+              "statusValue": "Meeting need rescheduling"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc79f8e9-cd5f-4d8b-abfa-0e4bcd5d48e9",
+      "name": "Notion - Get Clients Without Meeting",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -3792,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize Notion pages into simple client objects\nfunction addSingaporeCode(phone) {\n  if (!phone) return '';\n  let cleaned = String(phone).replace(/[\\s\\-()]/g, '');\n\n  if (cleaned.startsWith('+')) {\n    // Already has a country code of some kind - leave it as is.\n    return cleaned;\n  }\n  if (cleaned.startsWith('65') && cleaned.length > 8) {\n    // Already has 65 prefix without the +.\n    return '+' + cleaned;\n  }\n  if (cleaned.startsWith('0')) {\n    // Local format like +10000000000 - drop the leading 0 before adding +65.\n    cleaned = cleaned.slice(1);\n  }\n  return '+65' + cleaned;\n}\n\nconst clients = $input.all().map(item => {\n  const props = item.json.property_ || item.json;\n  return {\n    notionPageId: (item.json.id || '').replace(/-/g, ''),\n    clientName: item.json.property_Name || item.json.property_name || item.json['Name'] || 'Client',\n    clientPhone: addSingaporeCode(item.json.property_mobile_number || item.json.property_mobile_number || item.json['Phone'] || ''),\n  };\n});\nreturn clients.map(c => ({ json: c }));"
+      },
+      "id": "8ea1e858-c58e-4f73-93d5-1d83825ad2f1",
+      "name": "Normalize Client List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3568,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $now.startOf('month').toISO() }}",
+          "timeMax": "={{ $now.endOf('year').toISO() }}"
+        }
+      },
+      "id": "9351e568-c701-44e0-ae75-16b6551fe030",
+      "name": "Google Calendar - Get Year Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -3792,
+        2816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build every free 1-hour slot from now through Dec 31 of THIS year, 9am-5pm, Mon-Fri, minus busy events\nconst busyEvents = $input.all().map(item => ({\n  start: new Date(item.json.start?.dateTime || item.json.start?.date),\n  end: new Date(item.json.end?.dateTime || item.json.end?.date)\n})).filter(e => !isNaN(e.start) && !isNaN(e.end));\n\nconst businessStartHour = 9;\nconst businessEndHour = 17; // 5pm\nconst slotLengthMin = 60;\n\nconst now = new Date();\nlet cursor = new Date(now);\ncursor.setDate(cursor.getDate() + 1); // start from tomorrow\ncursor.setHours(0, 0, 0, 0);\n\n// End at Dec 31 of the CURRENT year, not 12 months from today\nconst endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59);\n\nlet slots = [];\n\nfor (let d = new Date(cursor); d <= endDate; d.setDate(d.getDate() + 1)) {\n  const dow = d.getDay();\n  if (dow === 0 || dow === 6) continue; // skip weekends\n\n  for (let h = businessStartHour; h < businessEndHour; h += slotLengthMin / 60) {\n    const slotStart = new Date(d);\n    slotStart.setHours(h, 0, 0, 0);\n    const slotEnd = new Date(slotStart.getTime() + slotLengthMin * 60000);\n\n    const overlaps = busyEvents.some(ev => slotStart < ev.end && slotEnd > ev.start);\n    if (!overlaps && slotStart > now) {\n      slots.push({\n        start: slotStart.toISOString(),\n        end: slotEnd.toISOString(),\n        monthKey: `${slotStart.getFullYear()}-${String(slotStart.getMonth() + 1).padStart(2, '0')}`\n      });\n    }\n  }\n}\n\nreturn [{ json: { allSlots: slots, totalSlots: slots.length } }];"
+      },
+      "id": "fd2e84c1-f85f-4c01-b07d-a8b3bdb8aaab",
+      "name": "Generate Year Availability Pool",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3568,
+        2816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Randomly assign each client 2 unique, never-repeated 1-hour slots\n// from ALL available slots across the year (today -> Dec 31 / however far the pool extends).\n// No \"closest\" bias - every client's two options are picked at random from the whole pool.\n\nconst clients = $items('Normalize Client List').map(i => i.json);\nconst pool = $items('Generate Year Availability Pool')[0].json.allSlots;\n\nif (!pool || pool.length === 0) {\n  throw new Error('No available slots found in the calendar for the configured range.');\n}\n\n// Fisher-Yates shuffle - randomizes the entire slot pool once, in place\nfunction shuffle(arr) {\n  const a = [...arr];\n  for (let i = a.length - 1; i > 0; i--) {\n    const j = Math.floor(Math.random() * (i + 1));\n    [a[i], a[j]] = [a[j], a[i]];\n  }\n  return a;\n}\n\nconst shuffledPool = shuffle(pool);\nconst totalSlotsAvailable = shuffledPool.length;\n\nif (totalSlotsAvailable < clients.length * 2) {\n  console.log(`Warning: only ${totalSlotsAvailable} slots available for ${clients.length} clients (need ${clients.length * 2}). Some clients will get marked NO_AVAILABLE_SLOTS.`);\n}\n\nconst results = [];\nlet cursor = 0;\n\nclients.forEach((client) => {\n  const option1 = shuffledPool[cursor];\n  const option2 = shuffledPool[cursor + 1];\n\n  if (!option1 || !option2) {\n    results.push({\n      ...client,\n      error: 'NO_AVAILABLE_SLOTS',\n      option1_text: null,\n      option2_text: null\n    });\n    return;\n  }\n\n  cursor += 2;\n  results.push(buildResult(client, option1, option2));\n});\n\nfunction formatSlot(iso) {\n  const d = new Date(iso);\n  const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });\n  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });\n  return `${date} at ${time}`;\n}\n\nfunction buildResult(client, o1, o2) {\n  return {\n    ...client,\n    option1_start: o1.start,\n    option1_end: o1.end,\n    option2_start: o2.start,\n    option2_end: o2.end,\n    option1_text: formatSlot(o1.start),\n    option2_text: formatSlot(o2.start),\n    assignedMonth: o1.monthKey\n  };\n}\n\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "196b2250-23c2-4d61-a20c-c56f05351886",
+      "name": "Assign Unique Yearly Slots Per Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3120,
+        2720
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "bc73d848-25af-4424-8a0f-95220be862e3",
+      "name": "Loop Clients (Batches of 10)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2672,
+        2720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"phone\": $json.clientPhone,\n  \"device\": \"6a891a3df8aa225663ce33d4\",\n  \"template\": {\n    \"name\": \"meeting_scheduling\",\n    \"language\": \"en_US\",\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          { \"type\": \"text\", \"text\": String($json.clientName || '') },\n          { \"type\": \"text\", \"text\": String($json.option1_text || '') },\n          { \"type\": \"text\", \"text\": String($json.option2_text || '') }\n        ]\n      }\n    ]\n  }\n} }}",
+        "options": {}
+      },
+      "id": "048e864d-b6b1-465d-8c27-0d427ce6f16a",
+      "name": "Wassenger - Send Meeting Proposal (Template)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2448,
+        2736
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              },
+              "id": "YOUR_NOTION_ID"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ec1d0bfc-f900-4179-b5de-80734d396d7e",
+      "name": "IF Send Succeeded",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2224,
+        2736
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('Loop Clients (Batches of 10)').item.json.notionPageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Meeting_Status|status",
+              "statusValue": "Scheduling in progress"
+            },
+            {
+              "key": "Option 1|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option1_text }}"
+            },
+            {
+              "key": "Option 2|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option2_text }}"
+            },
+            {
+              "key": "Option1start|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option1_start }}"
+            },
+            {
+              "key": "Option1End|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option1_end }}"
+            },
+            {
+              "key": "Option2Start|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option2_start }}"
+            },
+            {
+              "key": "Option2End|rich_text",
+              "textContent": "={{ $('Loop Clients (Batches of 10)').item.json.option2_end }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5ac3f370-4b95-4eaa-9f80-b09d0ef8a6f3",
+      "name": "Notion - Mark Proposal Sent",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -2000,
+        2544
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Loop Clients (Batches of 10)').item.json.notionPageId }}",
+          "__regex": "^([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Meeting_Status|status",
+              "statusValue": "Failed"
+            },
+            {
+              "key": "Option 1|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option1_text }}"
+            },
+            {
+              "key": "Option 2|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option2_text }}"
+            },
+            {
+              "key": "Option1start|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option1_start }}"
+            },
+            {
+              "key": "Option1End|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option1_end }}"
+            },
+            {
+              "key": "Option2Start|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option2_start }}"
+            },
+            {
+              "key": "Option2End|rich_text",
+              "richText": "={{ $('Loop Clients (Batches of 10)').item.json.option2_end }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2261119a-d737-48fb-9d5d-4007d4314e04",
+      "name": "Notion - Mark Send Failed",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -2000,
+        2752
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 4
+      },
+      "id": "17afbcbc-9d0f-45f7-9e27-c012117232e8",
+      "name": "Wait (Rate Limit Buffer)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1776,
+        2752
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f18d4ab8-4c65-4292-802b-d75b4030602f",
+      "name": "Wait For Both Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -3344,
+        2720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -4016,
+        2720
+      ],
+      "id": "9d87772f-a8ef-42e6-b5dc-3fc2d116a016",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "Notion - Get Clients Without Meeting": {
+      "main": [
+        [
+          {
+            "node": "Normalize Client List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Client List": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Get Year Events": {
+      "main": [
+        [
+          {
+            "node": "Generate Year Availability Pool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Year Availability Pool": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Assign Unique Yearly Slots Per Client": {
+      "main": [
+        [
+          {
+            "node": "Loop Clients (Batches of 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Clients (Batches of 10)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wassenger - Send Meeting Proposal (Template)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wassenger - Send Meeting Proposal (Template)": {
+      "main": [
+        [
+          {
+            "node": "IF Send Succeeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Send Succeeded": {
+      "main": [
+        [
+          {
+            "node": "Notion - Mark Proposal Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Mark Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mark Proposal Sent": {
+      "main": [
+        [
+          {
+            "node": "Wait (Rate Limit Buffer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mark Send Failed": {
+      "main": [
+        [
+          {
+            "node": "Wait (Rate Limit Buffer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (Rate Limit Buffer)": {
+      "main": [
+        [
+          {
+            "node": "Loop Clients (Batches of 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Both Branches": {
+      "main": [
+        [
+          {
+            "node": "Assign Unique Yearly Slots Per Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Notion - Get Clients Without Meeting",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Calendar - Get Year Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": []
+}

@@ -1,0 +1,619 @@
+{
+  "name": "Summary Flow - AI Notion Q&A",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "d56fca2c-97f9-4873-984d-a7cfadc23593",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        6624,
+        4256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = $json;\n\nconst aiRaw =\n  out.output?.[0]?.content?.find(part => part?.type === 'output_text')?.text ||\n  out.output?.[0]?.content?.[0]?.text ||\n  out.text ||\n  out.content ||\n  out.message?.content ||\n  out.choices?.[0]?.message?.content ||\n  out.output_text ||\n  '{}';\n\nlet parsed;\ntry {\n  parsed = JSON.parse(String(aiRaw).replace(/```json|```/g, '').trim());\n} catch (e) {\n  parsed = { queryType: 'other', clientNameGuess: null, searchTerm: null };\n}\n\nconst trigger = $('Map Main Workflow Input').first().json;\n\nreturn [{\n  json: {\n    clientPhone: trigger.clientPhone,\n    clientName: trigger.clientName,\n    questionText: trigger.questionText,\n    queryType: parsed.queryType || 'other',\n    clientNameGuess: parsed.clientNameGuess,\n    searchTerm: parsed.searchTerm\n  }\n}];"
+      },
+      "id": "7035f801-4f5a-40f3-a68c-84390db86c91",
+      "name": "Parse Interpretation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7472,
+        4256
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.queryType }}",
+                    "rightValue": "specific_client",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "rule-specific-client"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.queryType }}",
+                    "rightValue": "upcoming_meetings",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "rule-upcoming"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.queryType }}",
+                    "rightValue": "recent_customers",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "rule-recent"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.queryType }}",
+                    "rightValue": "general_list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "rule-general"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "63b57a91-cee4-44c5-bc52-47056083e9b5",
+      "name": "Route By Query Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        7696,
+        4208
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 5,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Name|rich_text",
+              "condition": "contains",
+              "richTextValue": "={{ $json.clientNameGuess || $json.searchTerm || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bc153f4c-0395-41b6-86d3-f77709313126",
+      "name": "Notion - Search By Client Name",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        7920,
+        3888
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 10,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Meeting_Status|status",
+              "condition": "equals",
+              "statusValue": "Meeting Scheduled"
+            }
+          ]
+        },
+        "options": {
+          "sort": {
+            "sortValue": [
+              {
+                "key": "Confirmed Time|rich_text",
+                "direction": "ascending"
+              }
+            ]
+          }
+        }
+      },
+      "id": "27e59ada-8d6e-42c9-9cbd-e156c8a0f4c4",
+      "name": "Notion - Get Upcoming Meetings",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        7920,
+        4272
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 25,
+        "options": {}
+      },
+      "id": "3ee81c64-a12b-4b91-a72c-6c057adf1cb4",
+      "name": "Notion - Get Broad Sample",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        7920,
+        4464
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "id": "4643bd75-a966-46af-98f7-f3d330f0dafe",
+      "name": "Merge All Lookup Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        8144,
+        4144
+      ],
+      "parameters2": {}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect whichever Notion results actually ran, flatten into plain text context for the AI to reason over\nconst allInputs = $input.all();\n\nconst records = allInputs.map(item => {\n  const p = item.json;\n  const fields = Object.keys(p).filter(k => k.startsWith('property_'));\n  const lines = fields.map(k => `${k.replace('property_', '')}: ${JSON.stringify(p[k])}`);\n  return lines.join(', ');\n}).filter(Boolean);\n\nconst trigger = $('Parse Interpretation').first().json;\n\nreturn [{\n  json: {\n    clientPhone: trigger.clientPhone,\n    questionText: trigger.questionText,\n    contextRecords: records.length ? records.join('\\n---\\n') : 'No matching records found in the database.'\n  }\n}];"
+      },
+      "id": "1373b741-64a3-4517-b7a4-bbef26ab631e",
+      "name": "Flatten Notion Results Into Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8368,
+        4176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = $json;\n\nconst answer =\n  out.output?.[0]?.content?.find(part => part?.type === 'output_text')?.text ||\n  out.output?.[0]?.content?.[0]?.text ||\n  out.text ||\n  out.content ||\n  out.message?.content ||\n  out.choices?.[0]?.message?.content ||\n  out.output_text ||\n  \"Sorry, I couldn't find that right now - a team member will follow up with you shortly.\";\n\nconst clientPhone = $('Flatten Notion Results Into Context').first().json.clientPhone;\n\nreturn [{ json: { clientPhone, answer: String(answer).trim() } }];"
+      },
+      "id": "9871bde9-13c9-40f3-83b7-d8c0c5bc33ab",
+      "name": "Prepare Final Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8944,
+        4176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\": $json.clientPhone, \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": $json.answer } }}",
+        "options": {}
+      },
+      "id": "f273764f-0a2f-4103-8c08-a4e9c47a3f49",
+      "name": "Wassenger - Send Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9168,
+        4352
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are a helpful assistant answering a client's WhatsApp question using ONLY the Notion database records provided below as context. Today's date is {{ $now.toISO() }}. Be concise, warm, and conversational - this reply gets sent directly over WhatsApp. If the records don't contain the answer, say so honestly - never make up information. Do not mention Notion, databases, or internal systems by name.\n\nDATABASE RECORDS:\n{{ $json.contextRecords }}"
+            },
+            {
+              "content": "={{ $json.questionText }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        8592,
+        4176
+      ],
+      "id": "c4eb1f23-daea-45bb-9e15-a622826dd69a",
+      "name": "Create Summery"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You interpret a WhatsApp question from the business owner about their client database. Today's date is {{ $now.toISO() }}. Reply ONLY with strict JSON, no markdown: {\"queryType\": \"specific_client\" | \"upcoming_meetings\" | \"recent_customers\" | \"general_list\", \"clientNameGuess\": \"<name mentioned in the question, or null>\", \"searchTerm\": \"<best keyword to search Notion with, or null>\"}. Use specific_client when a named client/patient is asked about (e.g. 'summary of John Doe', 'status on Sarah'). Use upcoming_meetings for questions about scheduled/booked meetings going forward (e.g. 'what meetings do I have coming up', 'who's booked this week', 'any upcoming appointments'). Use recent_customers for questions about newly added or recently active clients (e.g. 'who are my recent customers', 'any new clients lately', 'who signed up recently'). Use general_list for anything broader - overviews, counts, notable/worth-mentioning clients, or anything that doesn't clearly fit the other three."
+            },
+            {
+              "content": "={{ 'Client phone: ' + $json.clientPhone + ' | Known client name on file: ' + ($json.clientName || 'unknown') + ' | Question: ' + $json.questionText }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        7120,
+        4256
+      ],
+      "id": "fc180a7b-5a70-4511-8409-8377bb97d1e9",
+      "name": "Intention Clarifier"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 10,
+        "options": {
+          "sort": {
+            "sortValue": [
+              {
+                "key": "Last edited|last_edited_time",
+                "direction": "descending"
+              }
+            ]
+          }
+        }
+      },
+      "id": "07e7fc6d-a7d8-4d9b-8a69-745f8be4b53e",
+      "name": "Notion - Get Recent Customers",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        7920,
+        4080
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback: the AI's queryType didn't match any known category, or the question was too vague to route.\n// Ask the sender a clarifying question instead of silently dropping their message.\nconst trigger = $('Parse Interpretation').first().json;\n\nconst clarifyMessage = \"I want to make sure I get you the right info - could you clarify what you're asking? \" +\n  \"For example: a specific client's name, 'upcoming meetings', or 'recent customers'.\";\n\nreturn [{\n  json: {\n    clientPhone: trigger.clientPhone,\n    answer: clarifyMessage\n  }\n}];"
+      },
+      "id": "c9a1366e-a950-4b46-b9bd-21eb18a5faa9",
+      "name": "Prepare Clarifying Question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8944,
+        4608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json;\n\nreturn [{\n  json: {\n    clientPhone: input.from || '',\n    clientName: input.recipientName || null,\n    questionText: input.taskDescription || input.textBody || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6896,
+        4256
+      ],
+      "id": "eb73443b-4d33-4945-9b3f-88baac4284da",
+      "name": "Map Main Workflow Input"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Map Main Workflow Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Interpretation": {
+      "main": [
+        [
+          {
+            "node": "Route By Query Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route By Query Type": {
+      "main": [
+        [
+          {
+            "node": "Notion - Search By Client Name",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Get Upcoming Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Get Recent Customers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Get Broad Sample",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Clarifying Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Search By Client Name": {
+      "main": [
+        [
+          {
+            "node": "Merge All Lookup Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Lookup Results": {
+      "main": [
+        [
+          {
+            "node": "Flatten Notion Results Into Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Answer": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Send Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Broad Sample": {
+      "main": [
+        [
+          {
+            "node": "Merge All Lookup Results",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Flatten Notion Results Into Context": {
+      "main": [
+        [
+          {
+            "node": "Create Summery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Summery": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intention Clarifier": {
+      "main": [
+        [
+          {
+            "node": "Parse Interpretation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Get Upcoming Meetings": {
+      "main": [
+        [
+          {
+            "node": "Merge All Lookup Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Notion - Get Recent Customers": {
+      "main": [
+        [
+          {
+            "node": "Merge All Lookup Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Prepare Clarifying Question": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Send Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Main Workflow Input": {
+      "main": [
+        [
+          {
+            "node": "Intention Clarifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": []
+}

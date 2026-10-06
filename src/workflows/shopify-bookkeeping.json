@@ -1,0 +1,2368 @@
+{
+  "name": "Bookeeping Shopify Final",
+  "flow": [
+    {
+      "id": 1,
+      "module": "util:SetVariable2",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "name": "Date",
+        "scope": "roundtrip",
+        "value": "{{formatDate(addDays(now; -1); \"YYYY-MM-DD\"; \"America/New_York\")}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "scope": {
+              "label": "One cycle"
+            }
+          }
+        },
+        "expect": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Variable name",
+            "required": true
+          },
+          {
+            "name": "scope",
+            "type": "select",
+            "label": "Variable lifetime",
+            "required": true,
+            "validate": {
+              "enum": [
+                "roundtrip",
+                "execution"
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": "any",
+            "label": "Variable value"
+          }
+        ],
+        "interface": [
+          {
+            "name": "Date",
+            "type": "any",
+            "label": "Date"
+          }
+        ]
+      }
+    },
+    {
+      "id": 92,
+      "module": "builtin:BasicIfElse",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 150
+        }
+      },
+      "branches": [
+        {
+          "merge": true,
+          "label": "Copy Sheet",
+          "type": "condition",
+          "flow": [
+            {
+              "id": 94,
+              "module": "google-sheets:copyASheet",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 8937742
+              },
+              "mapper": {
+                "to": "share",
+                "from": "share",
+                "select": "list",
+                "sheetId": 597315052,
+                "newSheetName": "{{formatDate(now; \"MMMM YYYY\")}}",
+                "spreadsheetId": "/YOUR_GOOGLE_FILE_ID",
+                "destinationSpreadsheetId": "/YOUR_GOOGLE_FILE_ID"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 596,
+                  "y": -34
+                },
+                "restore": {
+                  "expect": {
+                    "to": {
+                      "label": "Shared with me"
+                    },
+                    "from": {
+                      "label": "Shared with me"
+                    },
+                    "select": {
+                      "label": "Search by path"
+                    },
+                    "sheetId": {
+                      "label": "Template"
+                    },
+                    "spreadsheetId": {
+                      "path": [
+                        "US DEALER BOOK-KEEPING AUTOMATION - MAKE.COM"
+                      ]
+                    },
+                    "destinationSpreadsheetId": {
+                      "path": [
+                        "US DEALER BOOK-KEEPING AUTOMATION - MAKE.COM"
+                      ]
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": {
+                      "data": {
+                        "scoped": "true",
+                        "connection": "google"
+                      },
+                      "label": "My Google connection (name@example.com)"
+                    }
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:google",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "select",
+                    "type": "select",
+                    "label": "Search Method",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "list",
+                        "fromAll",
+                        "map"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "from",
+                    "type": "select",
+                    "label": "Drive",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "drive",
+                        "share",
+                        "team"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "to",
+                    "type": "select",
+                    "label": "Destination Drive Location",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "drive",
+                        "share",
+                        "team"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "newSheetName",
+                    "type": "text",
+                    "label": "New Sheet Name"
+                  },
+                  {
+                    "name": "spreadsheetId",
+                    "type": "file",
+                    "label": "Spreadsheet ID",
+                    "required": true
+                  },
+                  {
+                    "name": "sheetId",
+                    "type": "select",
+                    "label": "Sheet ID",
+                    "required": true
+                  },
+                  {
+                    "name": "destinationSpreadsheetId",
+                    "type": "file",
+                    "label": "Destination Spreadsheet Name",
+                    "required": true
+                  }
+                ]
+              }
+            }
+          ],
+          "conditions": [
+            [
+              {
+                "a": "{{formatDate(1.Date; \"DD\")}}",
+                "b": "01",
+                "o": "text:equal"
+              }
+            ]
+          ]
+        },
+        {
+          "merge": true,
+          "disabled": false,
+          "label": "",
+          "type": "else",
+          "flow": [
+            {
+              "id": 93,
+              "module": "util:SetVariable2",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "name": "H",
+                "scope": "roundtrip",
+                "value": "H"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 600,
+                  "y": 300
+                },
+                "restore": {
+                  "expect": {
+                    "scope": {
+                      "label": "One cycle"
+                    }
+                  }
+                },
+                "expect": [
+                  {
+                    "name": "name",
+                    "type": "text",
+                    "label": "Variable name",
+                    "required": true
+                  },
+                  {
+                    "name": "scope",
+                    "type": "select",
+                    "label": "Variable lifetime",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "roundtrip",
+                        "execution"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "value",
+                    "type": "any",
+                    "label": "Variable value"
+                  }
+                ],
+                "interface": [
+                  {
+                    "name": "H",
+                    "type": "any",
+                    "label": "H"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "module": "builtin:BasicMerge",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": 150
+        }
+      },
+      "outputs": [],
+      "filters": [
+        null,
+        null
+      ]
+    },
+    {
+      "id": 2,
+      "module": "google-ads-reports:runCustomReport",
+      "version": 1,
+      "parameters": {
+        "__IMTCONN__": 9304773
+      },
+      "mapper": {
+        "limit": "100",
+        "query": "SELECT \r\n  campaign.name,\r\n  metrics.cost_micros\r\nFROM campaign\r\nWHERE segments.date = '{{1.Date}}'",
+        "accountId": "YOUR_ID"
+      },
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "accountId": {
+              "mode": "chose",
+              "label": "Your store (000-000-0000)"
+            }
+          },
+          "parameters": {
+            "__IMTCONN__": {
+              "data": {
+                "scoped": "true",
+                "connection": "google-ads2"
+              },
+              "label": "My Google Ads connection (Your store)"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTCONN__",
+            "type": "account:google-ads2",
+            "label": "Connection",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "accountId",
+            "type": "select",
+            "label": "Account ID",
+            "required": true
+          },
+          {
+            "name": "query",
+            "type": "text",
+            "label": "Query",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "type": "number",
+            "label": "Limit"
+          }
+        ]
+      }
+    },
+    {
+      "id": 22,
+      "module": "util:FunctionAggregator2",
+      "version": 1,
+      "parameters": {
+        "fn": "sum",
+        "feeder": 2
+      },
+      "mapper": {
+        "value": "{{2.metrics_costMicros}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 1500,
+          "y": 150
+        },
+        "restore": {
+          "extra": {
+            "feeder": {
+              "label": "Google Ads Reports - Run a Custom Report [2]"
+            }
+          },
+          "parameters": {
+            "fn": {
+              "label": "SUM"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fn",
+            "type": "select",
+            "label": "Aggregate function",
+            "required": true,
+            "validate": {
+              "enum": [
+                "avg",
+                "sum",
+                "count",
+                "max",
+                "min"
+              ]
+            }
+          }
+        ],
+        "expect": [
+          {
+            "name": "value",
+            "type": "number",
+            "label": "Value"
+          }
+        ]
+      }
+    },
+    {
+      "id": 23,
+      "module": "math:EvaluateExpression",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "expression": "{{round(22.result / 1000000)}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 1800,
+          "y": 150
+        },
+        "restore": {},
+        "expect": [
+          {
+            "name": "expression",
+            "type": "text",
+            "label": "Expression",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 30,
+      "module": "util:SetVariable2",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "name": "AdCost",
+        "scope": "roundtrip",
+        "value": "{{23.result}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 2100,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "scope": {
+              "label": "One cycle"
+            }
+          }
+        },
+        "expect": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Variable name",
+            "required": true
+          },
+          {
+            "name": "scope",
+            "type": "select",
+            "label": "Variable lifetime",
+            "required": true,
+            "validate": {
+              "enum": [
+                "roundtrip",
+                "execution"
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": "any",
+            "label": "Variable value"
+          }
+        ],
+        "interface": [
+          {
+            "name": "AdCost",
+            "type": "any",
+            "label": "AdCost"
+          }
+        ]
+      }
+    },
+    {
+      "id": 35,
+      "module": "http:MakeRequest",
+      "version": 4,
+      "parameters": {
+        "tlsType": "",
+        "authenticationType": "noAuth"
+      },
+      "mapper": {
+        "url": "https://your-store.myshopify.com/admin/api/2026-04/graphql.json",
+        "method": "post",
+        "headers": [
+          {
+            "name": "X-Shopify-Access-Token",
+            "value": "${SHOPIFY_ACCESS_TOKEN}"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "contentType": "json",
+        "inputMethod": "jsonString",
+        "shareCookies": false,
+        "parseResponse": true,
+        "allowRedirects": true,
+        "stopOnHttpError": true,
+        "jsonStringBodyContent": "{\r\n  \"query\": \"query { shopifyPaymentsAccount { balanceTransactions(first: 250, reverse: true, query: \\\"type:CHARGE\\\") { edges { node { type sourceType adjustmentReason transactionDate amount { amount currencyCode } fee { amount } net { amount } associatedOrder { name } } } } } }\"\r\n}",
+        "requestCompressedContent": true
+      },
+      "metadata": {
+        "designer": {
+          "x": 2400,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "method": {
+              "mode": "chose",
+              "label": "POST"
+            },
+            "headers": {
+              "mode": "chose",
+              "items": [
+                null,
+                null
+              ]
+            },
+            "contentType": {
+              "label": "application/jsonEnter data in the JSON format, as a string or using a data structure."
+            },
+            "inputMethod": {
+              "label": "JSON stringEnter the JSON body as a raw text string. If values contain JSON reserved characters, you must escape them manually."
+            },
+            "shareCookies": {
+              "mode": "chose"
+            },
+            "parseResponse": {
+              "mode": "chose"
+            },
+            "allowRedirects": {
+              "mode": "chose"
+            },
+            "paginationType": {
+              "label": "Empty"
+            },
+            "queryParameters": {
+              "mode": "chose"
+            },
+            "stopOnHttpError": {
+              "mode": "chose"
+            },
+            "requestCompressedContent": {
+              "mode": "chose"
+            }
+          },
+          "parameters": {
+            "tlsType": {
+              "label": "Empty"
+            },
+            "authenticationType": {
+              "label": "No authenticationUse when no credentials are required for the request."
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "authenticationType",
+            "type": "select",
+            "label": "Authentication type",
+            "required": true,
+            "validate": {
+              "enum": [
+                "noAuth",
+                "apiKey",
+                "basicAuth",
+                "oAuth"
+              ]
+            }
+          },
+          {
+            "name": "tlsType",
+            "type": "select",
+            "label": "Transport layer security (TLS)",
+            "validate": {
+              "enum": [
+                "mTls",
+                "tls"
+              ]
+            }
+          },
+          {
+            "name": "proxyKeychain",
+            "type": "keychain:proxy",
+            "label": "Proxy"
+          }
+        ],
+        "expect": [
+          {
+            "name": "url",
+            "type": "url",
+            "label": "URL",
+            "required": true
+          },
+          {
+            "name": "method",
+            "type": "select",
+            "label": "Method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "get",
+                "head",
+                "post",
+                "put",
+                "patch",
+                "delete",
+                "options"
+              ]
+            }
+          },
+          {
+            "name": "headers",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "pattern": "^[-!#$%&'*+.^_`|~0-9A-Za-z]+$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Header"
+            },
+            "type": "array",
+            "label": "Headers"
+          },
+          {
+            "name": "queryParameters",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Parameter"
+            },
+            "type": "array",
+            "label": "Query parameters"
+          },
+          {
+            "name": "contentType",
+            "type": "select",
+            "label": "Body content type",
+            "validate": {
+              "enum": [
+                "json",
+                "multipart",
+                "urlEncoded",
+                "custom"
+              ]
+            }
+          },
+          {
+            "name": "parseResponse",
+            "type": "boolean",
+            "label": "Parse response",
+            "required": true
+          },
+          {
+            "name": "stopOnHttpError",
+            "type": "boolean",
+            "label": "Return error if HTTP request fails",
+            "required": true
+          },
+          {
+            "name": "timeout",
+            "type": "uinteger",
+            "label": "Timeout",
+            "validate": {
+              "max": 300,
+              "min": 1
+            }
+          },
+          {
+            "name": "allowRedirects",
+            "type": "boolean",
+            "label": "Allow redirects",
+            "required": true
+          },
+          {
+            "name": "shareCookies",
+            "type": "boolean",
+            "label": "Share cookies with other HTTP modules",
+            "required": true
+          },
+          {
+            "name": "requestCompressedContent",
+            "type": "boolean",
+            "label": "Request compressed content",
+            "required": true
+          },
+          {
+            "name": "inputMethod",
+            "type": "select",
+            "label": "Body input method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "dataStructure",
+                "jsonString"
+              ]
+            }
+          },
+          {
+            "name": "jsonStringBodyContent",
+            "type": "text",
+            "label": "Body content",
+            "required": true
+          },
+          {
+            "name": "paginationType",
+            "type": "select",
+            "label": "Pagination type",
+            "validate": {
+              "enum": [
+                "offsetBased",
+                "pageBased",
+                "urlBased",
+                "tokenBased"
+              ]
+            }
+          }
+        ],
+        "interface": [
+          {
+            "name": "data",
+            "type": "any",
+            "label": "Data"
+          },
+          {
+            "name": "statusCode",
+            "type": "number",
+            "label": "Status Code"
+          },
+          {
+            "name": "headers",
+            "spec": [
+              {
+                "name": "content-length",
+                "type": "text",
+                "label": "Content-Length"
+              },
+              {
+                "name": "content-encoding",
+                "type": "text",
+                "label": "Content-Encoding"
+              },
+              {
+                "name": "content-type",
+                "type": "text",
+                "label": "Content-Type"
+              },
+              {
+                "name": "server",
+                "type": "text",
+                "label": "Server"
+              },
+              {
+                "name": "cache-control",
+                "type": "text",
+                "label": "Cache-Control"
+              },
+              {
+                "name": "set-cookie",
+                "spec": {
+                  "type": "text"
+                },
+                "type": "array",
+                "label": "Set-Cookie"
+              }
+            ],
+            "type": "collection",
+            "label": "Headers"
+          }
+        ]
+      }
+    },
+    {
+      "id": 74,
+      "module": "code:ExecuteCode",
+      "version": 1,
+      "parameters": {},
+      "filter": null,
+      "mapper": {
+        "input": [
+          {
+            "name": "edges",
+            "value": "{{35.data.data.shopifyPaymentsAccount.balanceTransactions.edges}}"
+          },
+          {
+            "name": "date",
+            "value": "{{1.Date}}"
+          }
+        ],
+        "language": "javascript",
+        "inputFormat": "editor",
+        "dependencies": [],
+        "codeEditorJavascript": "const transactions = input.edges || [];\nconst targetDate = input.date; // = 1.Date, EST \"yesterday\"\n\nlet totals = { TotalSales: 0, ChargeFee: 0, DisputeReversalNet: 0 };\n\nif (Array.isArray(transactions)) {\n    transactions.forEach(edge => {\n        const node = edge.node;\n        if (!node || !node.transactionDate) return;\n\n        const transactionDateET = new Date(node.transactionDate)\n            .toLocaleDateString('en-CA', { timeZone: 'America/New_York' });\n\n        if (transactionDateET === targetDate) {\n            const type = (node.type || \"\").toUpperCase();\n\n            if (type === \"CHARGE\") {\n                const gross = parseFloat(node.amount?.amount || 0);\n                const fee = parseFloat(node.fee?.amount || 0);\n\n                totals.TotalSales += gross;\n                totals.ChargeFee += fee;\n            }\n\n            if (type === \"DISPUTE_REVERSAL\") {\n                const net = parseFloat(node.net?.amount || 0);\n                totals.DisputeReversalNet += net;\n            }\n        }\n    });\n}\n\ntotals.TotalSales = Math.round(totals.TotalSales * 100) / 100;\ntotals.ChargeFee = Math.round(totals.ChargeFee * 100) / 100;\ntotals.DisputeReversalNet = Math.round(totals.DisputeReversalNet * 100) / 100;\n\nreturn totals;"
+      },
+      "metadata": {
+        "designer": {
+          "x": 2700,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "input": {
+              "items": [
+                null,
+                null
+              ]
+            },
+            "language": {
+              "mode": "chose",
+              "label": "JavaScript"
+            },
+            "inputFormat": {
+              "label": "Code editor"
+            }
+          }
+        },
+        "expect": [
+          {
+            "name": "language",
+            "type": "select",
+            "label": "Language",
+            "required": true,
+            "validate": {
+              "enum": [
+                "javascript",
+                "python"
+              ]
+            }
+          },
+          {
+            "name": "input",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "max": 32,
+                    "min": 1,
+                    "pattern": "^[a-zA-Z0-9_]{1,32}$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "any",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Variable"
+            },
+            "type": "array",
+            "label": "Input"
+          },
+          {
+            "name": "dependencies",
+            "spec": {
+              "name": "value",
+              "type": "text",
+              "label": "Dependency",
+              "required": true,
+              "validate": {
+                "max": 214,
+                "min": 1,
+                "pattern": "^[A-Za-z0-9_@\\./<>=!~\\^+-]{1,214}$"
+              }
+            },
+            "type": "array",
+            "label": "Additional dependencies (Enterprise plans only)"
+          },
+          {
+            "name": "inputFormat",
+            "type": "select",
+            "label": "Input format",
+            "required": true,
+            "validate": {
+              "enum": [
+                "editor",
+                "string"
+              ]
+            }
+          },
+          {
+            "name": "codeEditorJavascript",
+            "type": "editor",
+            "label": "Code",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 78,
+      "module": "http:MakeRequest",
+      "version": 4,
+      "parameters": {
+        "tlsType": "",
+        "authenticationType": "noAuth"
+      },
+      "filter": null,
+      "mapper": {
+        "url": "https://your-store.myshopify.com/admin/api/2026-04/graphql.json",
+        "method": "post",
+        "headers": [
+          {
+            "name": "X-Shopify-Access-Token",
+            "value": "${SHOPIFY_ACCESS_TOKEN}"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "contentType": "json",
+        "inputMethod": "jsonString",
+        "shareCookies": false,
+        "parseResponse": true,
+        "allowRedirects": true,
+        "stopOnHttpError": true,
+        "jsonStringBodyContent": "\"{\\r\\n  \\\"query\\\": \\\"query { chargebacks: shopifyqlQuery(query: \\\\\\\"FROM chargebacks SHOW day, chargeback_amount, chargebacks SINCE {{1.Date}} UNTIL {{1.Date}} GROUP BY day ORDER BY day ASC\\\\\\\") { tableData { rows columns { name } } parseErrors } refunds: shopifyqlQuery(query: \\\\\\\"FROM sales SHOW day, refunded_payments SINCE {{1.Date}} UNTIL {{1.Date}} GROUP BY day ORDER BY day ASC\\\\\\\") { tableData { rows columns { name } } parseErrors } }\\\"\\r\\n}\"",
+        "requestCompressedContent": true
+      },
+      "metadata": {
+        "designer": {
+          "x": 3000,
+          "y": 150,
+          "name": "Chargeback & Refund"
+        },
+        "restore": {
+          "expect": {
+            "method": {
+              "mode": "chose",
+              "label": "POST"
+            },
+            "headers": {
+              "mode": "chose",
+              "items": [
+                null,
+                null
+              ]
+            },
+            "contentType": {
+              "label": "application/jsonEnter data in the JSON format, as a string or using a data structure."
+            },
+            "inputMethod": {
+              "label": "JSON stringEnter the JSON body as a raw text string. If values contain JSON reserved characters, you must escape them manually."
+            },
+            "shareCookies": {
+              "mode": "chose"
+            },
+            "parseResponse": {
+              "mode": "chose"
+            },
+            "allowRedirects": {
+              "mode": "chose"
+            },
+            "paginationType": {
+              "label": "Empty"
+            },
+            "queryParameters": {
+              "mode": "chose"
+            },
+            "stopOnHttpError": {
+              "mode": "chose"
+            },
+            "requestCompressedContent": {
+              "mode": "chose"
+            }
+          },
+          "parameters": {
+            "tlsType": {
+              "label": "Empty"
+            },
+            "authenticationType": {
+              "label": "No authenticationUse when no credentials are required for the request."
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "authenticationType",
+            "type": "select",
+            "label": "Authentication type",
+            "required": true,
+            "validate": {
+              "enum": [
+                "noAuth",
+                "apiKey",
+                "basicAuth",
+                "oAuth"
+              ]
+            }
+          },
+          {
+            "name": "tlsType",
+            "type": "select",
+            "label": "Transport layer security (TLS)",
+            "validate": {
+              "enum": [
+                "mTls",
+                "tls"
+              ]
+            }
+          },
+          {
+            "name": "proxyKeychain",
+            "type": "keychain:proxy",
+            "label": "Proxy"
+          }
+        ],
+        "expect": [
+          {
+            "name": "url",
+            "type": "url",
+            "label": "URL",
+            "required": true
+          },
+          {
+            "name": "method",
+            "type": "select",
+            "label": "Method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "get",
+                "head",
+                "post",
+                "put",
+                "patch",
+                "delete",
+                "options"
+              ]
+            }
+          },
+          {
+            "name": "headers",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "pattern": "^[-!#$%&'*+.^_`|~0-9A-Za-z]+$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Header"
+            },
+            "type": "array",
+            "label": "Headers"
+          },
+          {
+            "name": "queryParameters",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true
+                },
+                {
+                  "name": "value",
+                  "type": "text",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Parameter"
+            },
+            "type": "array",
+            "label": "Query parameters"
+          },
+          {
+            "name": "contentType",
+            "type": "select",
+            "label": "Body content type",
+            "validate": {
+              "enum": [
+                "json",
+                "multipart",
+                "urlEncoded",
+                "custom"
+              ]
+            }
+          },
+          {
+            "name": "parseResponse",
+            "type": "boolean",
+            "label": "Parse response",
+            "required": true
+          },
+          {
+            "name": "stopOnHttpError",
+            "type": "boolean",
+            "label": "Return error if HTTP request fails",
+            "required": true
+          },
+          {
+            "name": "timeout",
+            "type": "uinteger",
+            "label": "Timeout",
+            "validate": {
+              "max": 300,
+              "min": 1
+            }
+          },
+          {
+            "name": "allowRedirects",
+            "type": "boolean",
+            "label": "Allow redirects",
+            "required": true
+          },
+          {
+            "name": "shareCookies",
+            "type": "boolean",
+            "label": "Share cookies with other HTTP modules",
+            "required": true
+          },
+          {
+            "name": "requestCompressedContent",
+            "type": "boolean",
+            "label": "Request compressed content",
+            "required": true
+          },
+          {
+            "name": "inputMethod",
+            "type": "select",
+            "label": "Body input method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "dataStructure",
+                "jsonString"
+              ]
+            }
+          },
+          {
+            "name": "jsonStringBodyContent",
+            "type": "text",
+            "label": "Body content",
+            "required": true
+          },
+          {
+            "name": "paginationType",
+            "type": "select",
+            "label": "Pagination type",
+            "validate": {
+              "enum": [
+                "offsetBased",
+                "pageBased",
+                "urlBased",
+                "tokenBased"
+              ]
+            }
+          }
+        ],
+        "interface": [
+          {
+            "name": "data",
+            "type": "any",
+            "label": "Data"
+          },
+          {
+            "name": "statusCode",
+            "type": "number",
+            "label": "Status Code"
+          },
+          {
+            "name": "headers",
+            "spec": [
+              {
+                "name": "content-length",
+                "type": "text",
+                "label": "Content-Length"
+              },
+              {
+                "name": "content-encoding",
+                "type": "text",
+                "label": "Content-Encoding"
+              },
+              {
+                "name": "content-type",
+                "type": "text",
+                "label": "Content-Type"
+              },
+              {
+                "name": "server",
+                "type": "text",
+                "label": "Server"
+              },
+              {
+                "name": "cache-control",
+                "type": "text",
+                "label": "Cache-Control"
+              },
+              {
+                "name": "set-cookie",
+                "spec": {
+                  "type": "text"
+                },
+                "type": "array",
+                "label": "Set-Cookie"
+              }
+            ],
+            "type": "collection",
+            "label": "Headers"
+          }
+        ]
+      }
+    },
+    {
+      "id": 79,
+      "module": "code:ExecuteCode",
+      "version": 1,
+      "parameters": {},
+      "filter": null,
+      "mapper": {
+        "input": [
+          {
+            "name": "chargebacks",
+            "value": "{{78.data.data.chargebacks}}"
+          },
+          {
+            "name": "date",
+            "value": "{{1.Date}}"
+          },
+          {
+            "name": "Refund",
+            "value": "{{78.data.data.refunds}}"
+          }
+        ],
+        "language": "javascript",
+        "inputFormat": "editor",
+        "dependencies": [],
+        "codeEditorJavascript": "const chargebackTable = input.chargebacks?.tableData;\nconst refundTable     = input.Refund?.tableData;\nconst targetDate      = input.date;\n\nlet result = {\n    ChargebackAmount : 0,\n    ChargebackCount  : 0,\n    ChargebackFee    : 0,\n    ChargebackTotal  : 0,\n    RefundAmount     : 0\n};\n\nconst chargebackRows = chargebackTable?.rows || [];\nchargebackRows.forEach(row => {\n    if ((row.day || \"\").slice(0, 10) === targetDate) {\n        result.ChargebackAmount = parseFloat(row.chargeback_amount || 0);\n        result.ChargebackCount  = parseInt(row.chargebacks || 0, 10);\n    }\n});\n\nresult.ChargebackFee   = result.ChargebackCount * 15;\nresult.ChargebackTotal = Math.round((result.ChargebackAmount + result.ChargebackFee) * 100) / 100;\n\nconst refundRows = refundTable?.rows || [];\nrefundRows.forEach(row => {\n    if ((row.day || \"\").slice(0, 10) === targetDate) {\n        result.RefundAmount = Math.round(parseFloat(row.refunded_payments || 0) * 100) / 100;\n    }\n});\n\nreturn result;"
+      },
+      "metadata": {
+        "designer": {
+          "x": 3300,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "input": {
+              "items": [
+                null,
+                null,
+                null
+              ]
+            },
+            "language": {
+              "mode": "chose",
+              "label": "JavaScript"
+            },
+            "inputFormat": {
+              "label": "Code editor"
+            }
+          }
+        },
+        "expect": [
+          {
+            "name": "language",
+            "type": "select",
+            "label": "Language",
+            "required": true,
+            "validate": {
+              "enum": [
+                "javascript",
+                "python"
+              ]
+            }
+          },
+          {
+            "name": "input",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "max": 32,
+                    "min": 1,
+                    "pattern": "^[a-zA-Z0-9_]{1,32}$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "any",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Variable"
+            },
+            "type": "array",
+            "label": "Input"
+          },
+          {
+            "name": "dependencies",
+            "spec": {
+              "name": "value",
+              "type": "text",
+              "label": "Dependency",
+              "required": true,
+              "validate": {
+                "max": 214,
+                "min": 1,
+                "pattern": "^[A-Za-z0-9_@\\./<>=!~\\^+-]{1,214}$"
+              }
+            },
+            "type": "array",
+            "label": "Additional dependencies (Enterprise plans only)"
+          },
+          {
+            "name": "inputFormat",
+            "type": "select",
+            "label": "Input format",
+            "required": true,
+            "validate": {
+              "enum": [
+                "editor",
+                "string"
+              ]
+            }
+          },
+          {
+            "name": "codeEditorJavascript",
+            "type": "editor",
+            "label": "Code",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 41,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": 8937742
+      },
+      "mapper": {
+        "mode": "map",
+        "values": {
+          "0": "{{1.Date}}",
+          "1": "{{30.AdCost}}",
+          "2": "{{74.result.ChargeFee}}",
+          "4": "{{79.result.ChargebackTotal}}",
+          "5": "{{79.result.RefundAmount}}",
+          "7": "{{74.result.DisputeReversalNet}}",
+          "8": "{{74.result.TotalSales}}"
+        },
+        "sheetId": "{{formatDate(addDays(now; -1); \"MMMM YYYY\")}}",
+        "spreadsheetId": "/YOUR_GOOGLE_FILE_ID",
+        "tableFirstRow": "A1:Z1",
+        "insertDataOption": "INSERT_ROWS",
+        "valueInputOption": "USER_ENTERED",
+        "insertUnformatted": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 3600,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "mode": {
+              "label": "Enter manually"
+            },
+            "tableFirstRow": {
+              "label": "A-Z",
+              "nested": [
+                {
+                  "name": "values",
+                  "spec": [
+                    {
+                      "name": "0",
+                      "type": "text",
+                      "label": "A"
+                    },
+                    {
+                      "name": "1",
+                      "type": "text",
+                      "label": "B"
+                    },
+                    {
+                      "name": "2",
+                      "type": "text",
+                      "label": "C"
+                    },
+                    {
+                      "name": "3",
+                      "type": "text",
+                      "label": "D"
+                    },
+                    {
+                      "name": "4",
+                      "type": "text",
+                      "label": "E"
+                    },
+                    {
+                      "name": "5",
+                      "type": "text",
+                      "label": "F"
+                    },
+                    {
+                      "name": "6",
+                      "type": "text",
+                      "label": "G"
+                    },
+                    {
+                      "name": "7",
+                      "type": "text",
+                      "label": "H"
+                    },
+                    {
+                      "name": "8",
+                      "type": "text",
+                      "label": "I"
+                    },
+                    {
+                      "name": "9",
+                      "type": "text",
+                      "label": "J"
+                    },
+                    {
+                      "name": "10",
+                      "type": "text",
+                      "label": "K"
+                    },
+                    {
+                      "name": "11",
+                      "type": "text",
+                      "label": "L"
+                    },
+                    {
+                      "name": "12",
+                      "type": "text",
+                      "label": "M"
+                    },
+                    {
+                      "name": "13",
+                      "type": "text",
+                      "label": "N"
+                    },
+                    {
+                      "name": "14",
+                      "type": "text",
+                      "label": "O"
+                    },
+                    {
+                      "name": "15",
+                      "type": "text",
+                      "label": "P"
+                    },
+                    {
+                      "name": "16",
+                      "type": "text",
+                      "label": "Q"
+                    },
+                    {
+                      "name": "17",
+                      "type": "text",
+                      "label": "R"
+                    },
+                    {
+                      "name": "18",
+                      "type": "text",
+                      "label": "S"
+                    },
+                    {
+                      "name": "19",
+                      "type": "text",
+                      "label": "T"
+                    },
+                    {
+                      "name": "20",
+                      "type": "text",
+                      "label": "U"
+                    },
+                    {
+                      "name": "21",
+                      "type": "text",
+                      "label": "V"
+                    },
+                    {
+                      "name": "22",
+                      "type": "text",
+                      "label": "W"
+                    },
+                    {
+                      "name": "23",
+                      "type": "text",
+                      "label": "X"
+                    },
+                    {
+                      "name": "24",
+                      "type": "text",
+                      "label": "Y"
+                    },
+                    {
+                      "name": "25",
+                      "type": "text",
+                      "label": "Z"
+                    }
+                  ],
+                  "type": "collection",
+                  "label": "Values in columns"
+                }
+              ]
+            },
+            "insertDataOption": {
+              "mode": "chose",
+              "label": "Insert rows"
+            },
+            "valueInputOption": {
+              "mode": "chose",
+              "label": "User entered"
+            },
+            "insertUnformatted": {
+              "mode": "chose"
+            }
+          },
+          "parameters": {
+            "__IMTCONN__": {
+              "data": {
+                "scoped": "true",
+                "connection": "google"
+              },
+              "label": "My Google connection (name@example.com)"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTCONN__",
+            "type": "account:google",
+            "label": "Connection",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "mode",
+            "type": "select",
+            "label": "Search Method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "select",
+                "fromAll",
+                "map"
+              ]
+            }
+          },
+          {
+            "name": "insertUnformatted",
+            "type": "boolean",
+            "label": "Unformatted",
+            "required": true
+          },
+          {
+            "name": "valueInputOption",
+            "type": "select",
+            "label": "Value input option",
+            "required": true,
+            "validate": {
+              "enum": [
+                "USER_ENTERED",
+                "RAW"
+              ]
+            }
+          },
+          {
+            "name": "insertDataOption",
+            "type": "select",
+            "label": "Insert data option",
+            "validate": {
+              "enum": [
+                "INSERT_ROWS",
+                "OVERWRITE"
+              ]
+            }
+          },
+          {
+            "name": "spreadsheetId",
+            "type": "text",
+            "label": "Spreadsheet ID",
+            "required": true
+          },
+          {
+            "name": "sheetId",
+            "type": "text",
+            "label": "Sheet Name",
+            "required": true
+          },
+          {
+            "name": "tableFirstRow",
+            "type": "select",
+            "label": "Column range",
+            "required": true,
+            "validate": {
+              "enum": [
+                "A1:Z1",
+                "A1:BZ1",
+                "A1:CZ1",
+                "A1:DZ1",
+                "A1:MZ1",
+                "A1:ZZ1"
+              ]
+            }
+          },
+          {
+            "name": "values",
+            "spec": [
+              {
+                "name": "0",
+                "type": "text",
+                "label": "A"
+              },
+              {
+                "name": "1",
+                "type": "text",
+                "label": "B"
+              },
+              {
+                "name": "2",
+                "type": "text",
+                "label": "C"
+              },
+              {
+                "name": "3",
+                "type": "text",
+                "label": "D"
+              },
+              {
+                "name": "4",
+                "type": "text",
+                "label": "E"
+              },
+              {
+                "name": "5",
+                "type": "text",
+                "label": "F"
+              },
+              {
+                "name": "6",
+                "type": "text",
+                "label": "G"
+              },
+              {
+                "name": "7",
+                "type": "text",
+                "label": "H"
+              },
+              {
+                "name": "8",
+                "type": "text",
+                "label": "I"
+              },
+              {
+                "name": "9",
+                "type": "text",
+                "label": "J"
+              },
+              {
+                "name": "10",
+                "type": "text",
+                "label": "K"
+              },
+              {
+                "name": "11",
+                "type": "text",
+                "label": "L"
+              },
+              {
+                "name": "12",
+                "type": "text",
+                "label": "M"
+              },
+              {
+                "name": "13",
+                "type": "text",
+                "label": "N"
+              },
+              {
+                "name": "14",
+                "type": "text",
+                "label": "O"
+              },
+              {
+                "name": "15",
+                "type": "text",
+                "label": "P"
+              },
+              {
+                "name": "16",
+                "type": "text",
+                "label": "Q"
+              },
+              {
+                "name": "17",
+                "type": "text",
+                "label": "R"
+              },
+              {
+                "name": "18",
+                "type": "text",
+                "label": "S"
+              },
+              {
+                "name": "19",
+                "type": "text",
+                "label": "T"
+              },
+              {
+                "name": "20",
+                "type": "text",
+                "label": "U"
+              },
+              {
+                "name": "21",
+                "type": "text",
+                "label": "V"
+              },
+              {
+                "name": "22",
+                "type": "text",
+                "label": "W"
+              },
+              {
+                "name": "23",
+                "type": "text",
+                "label": "X"
+              },
+              {
+                "name": "24",
+                "type": "text",
+                "label": "Y"
+              },
+              {
+                "name": "25",
+                "type": "text",
+                "label": "Z"
+              }
+            ],
+            "type": "collection",
+            "label": "Values in columns"
+          }
+        ],
+        "advanced": true
+      }
+    },
+    {
+      "id": 88,
+      "module": "code:ExecuteCode",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "input": [
+          {
+            "name": "date",
+            "value": "{{1.Date}}"
+          }
+        ],
+        "language": "javascript",
+        "inputFormat": "editor",
+        "dependencies": [],
+        "codeEditorJavascript": "const dateStr = input.date;\n\nconst day = parseInt(dateStr.split('-')[2], 10);\n\nconst row = day + 1;\n\nconst formula = `=I${row}+H${row}-(B${row}+C${row}+D${row}+E${row}+F${row}+G${row})`;\n\n// Weekly Profit formula now references column J\nlet profitFormula = \"\";\nif ([7, 14, 21, 28].includes(day)) {\n    const endRow = row;\n    const startRow = endRow - 6;\n    profitFormula = `=SUM(J${startRow}:J${endRow})`;\n}\n\nreturn {\n    row: row,\n    formula: formula,\n    profitFormula: profitFormula\n};"
+      },
+      "metadata": {
+        "designer": {
+          "x": 3900,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "input": {
+              "items": [
+                null
+              ]
+            },
+            "language": {
+              "mode": "chose",
+              "label": "JavaScript"
+            },
+            "inputFormat": {
+              "label": "Code editor"
+            }
+          }
+        },
+        "expect": [
+          {
+            "name": "language",
+            "type": "select",
+            "label": "Language",
+            "required": true,
+            "validate": {
+              "enum": [
+                "javascript",
+                "python"
+              ]
+            }
+          },
+          {
+            "name": "input",
+            "spec": {
+              "name": "value",
+              "spec": [
+                {
+                  "name": "name",
+                  "type": "text",
+                  "label": "Name",
+                  "required": true,
+                  "validate": {
+                    "max": 32,
+                    "min": 1,
+                    "pattern": "^[a-zA-Z0-9_]{1,32}$"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": "any",
+                  "label": "Value"
+                }
+              ],
+              "type": "collection",
+              "label": "Variable"
+            },
+            "type": "array",
+            "label": "Input"
+          },
+          {
+            "name": "dependencies",
+            "spec": {
+              "name": "value",
+              "type": "text",
+              "label": "Dependency",
+              "required": true,
+              "validate": {
+                "max": 214,
+                "min": 1,
+                "pattern": "^[A-Za-z0-9_@\\./<>=!~\\^+-]{1,214}$"
+              }
+            },
+            "type": "array",
+            "label": "Additional dependencies (Enterprise plans only)"
+          },
+          {
+            "name": "inputFormat",
+            "type": "select",
+            "label": "Input format",
+            "required": true,
+            "validate": {
+              "enum": [
+                "editor",
+                "string"
+              ]
+            }
+          },
+          {
+            "name": "codeEditorJavascript",
+            "type": "editor",
+            "label": "Code",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 90,
+      "module": "google-sheets:updateRow",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": 8937742
+      },
+      "mapper": {
+        "mode": "map",
+        "values": {
+          "9": "{{88.result.formula}}",
+          "10": "{{88.result.profitFormula}}"
+        },
+        "sheetId": "{{formatDate(addDays(now; -1); \"MMMM YYYY\")}}",
+        "rowNumber": "{{88.result.row}}",
+        "spreadsheetId": "/YOUR_GOOGLE_FILE_ID",
+        "tableFirstRow": "A1:Z1",
+        "valueInputOption": "USER_ENTERED"
+      },
+      "metadata": {
+        "designer": {
+          "x": 4200,
+          "y": 150
+        },
+        "restore": {
+          "expect": {
+            "mode": {
+              "label": "Enter manually"
+            },
+            "tableFirstRow": {
+              "label": "A-Z",
+              "nested": [
+                {
+                  "name": "values",
+                  "spec": [
+                    {
+                      "name": "0",
+                      "type": "text",
+                      "label": "A"
+                    },
+                    {
+                      "name": "1",
+                      "type": "text",
+                      "label": "B"
+                    },
+                    {
+                      "name": "2",
+                      "type": "text",
+                      "label": "C"
+                    },
+                    {
+                      "name": "3",
+                      "type": "text",
+                      "label": "D"
+                    },
+                    {
+                      "name": "4",
+                      "type": "text",
+                      "label": "E"
+                    },
+                    {
+                      "name": "5",
+                      "type": "text",
+                      "label": "F"
+                    },
+                    {
+                      "name": "6",
+                      "type": "text",
+                      "label": "G"
+                    },
+                    {
+                      "name": "7",
+                      "type": "text",
+                      "label": "H"
+                    },
+                    {
+                      "name": "8",
+                      "type": "text",
+                      "label": "I"
+                    },
+                    {
+                      "name": "9",
+                      "type": "text",
+                      "label": "J"
+                    },
+                    {
+                      "name": "10",
+                      "type": "text",
+                      "label": "K"
+                    },
+                    {
+                      "name": "11",
+                      "type": "text",
+                      "label": "L"
+                    },
+                    {
+                      "name": "12",
+                      "type": "text",
+                      "label": "M"
+                    },
+                    {
+                      "name": "13",
+                      "type": "text",
+                      "label": "N"
+                    },
+                    {
+                      "name": "14",
+                      "type": "text",
+                      "label": "O"
+                    },
+                    {
+                      "name": "15",
+                      "type": "text",
+                      "label": "P"
+                    },
+                    {
+                      "name": "16",
+                      "type": "text",
+                      "label": "Q"
+                    },
+                    {
+                      "name": "17",
+                      "type": "text",
+                      "label": "R"
+                    },
+                    {
+                      "name": "18",
+                      "type": "text",
+                      "label": "S"
+                    },
+                    {
+                      "name": "19",
+                      "type": "text",
+                      "label": "T"
+                    },
+                    {
+                      "name": "20",
+                      "type": "text",
+                      "label": "U"
+                    },
+                    {
+                      "name": "21",
+                      "type": "text",
+                      "label": "V"
+                    },
+                    {
+                      "name": "22",
+                      "type": "text",
+                      "label": "W"
+                    },
+                    {
+                      "name": "23",
+                      "type": "text",
+                      "label": "X"
+                    },
+                    {
+                      "name": "24",
+                      "type": "text",
+                      "label": "Y"
+                    },
+                    {
+                      "name": "25",
+                      "type": "text",
+                      "label": "Z"
+                    }
+                  ],
+                  "type": "collection",
+                  "label": "Values in columns"
+                }
+              ]
+            },
+            "valueInputOption": {
+              "mode": "chose",
+              "label": "User entered"
+            }
+          },
+          "parameters": {
+            "__IMTCONN__": {
+              "data": {
+                "scoped": "true",
+                "connection": "google"
+              },
+              "label": "My Google connection (name@example.com)"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTCONN__",
+            "type": "account:google",
+            "label": "Connection",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "mode",
+            "type": "select",
+            "label": "Search Method",
+            "required": true,
+            "validate": {
+              "enum": [
+                "select",
+                "fromAll",
+                "map"
+              ]
+            }
+          },
+          {
+            "name": "valueInputOption",
+            "type": "select",
+            "label": "Value input option",
+            "validate": {
+              "enum": [
+                "USER_ENTERED",
+                "RAW"
+              ]
+            }
+          },
+          {
+            "name": "spreadsheetId",
+            "type": "text",
+            "label": "Spreadsheet ID",
+            "required": true
+          },
+          {
+            "name": "sheetId",
+            "type": "text",
+            "label": "Sheet Name",
+            "required": true
+          },
+          {
+            "name": "rowNumber",
+            "type": "uinteger",
+            "label": "Row number",
+            "required": true
+          },
+          {
+            "name": "tableFirstRow",
+            "type": "select",
+            "label": "Column range",
+            "required": true,
+            "validate": {
+              "enum": [
+                "A1:Z1",
+                "A1:BZ1",
+                "A1:CZ1",
+                "A1:DZ1",
+                "A1:MZ1",
+                "A1:ZZ1"
+              ]
+            }
+          },
+          {
+            "name": "values",
+            "spec": [
+              {
+                "name": "0",
+                "type": "text",
+                "label": "A"
+              },
+              {
+                "name": "1",
+                "type": "text",
+                "label": "B"
+              },
+              {
+                "name": "2",
+                "type": "text",
+                "label": "C"
+              },
+              {
+                "name": "3",
+                "type": "text",
+                "label": "D"
+              },
+              {
+                "name": "4",
+                "type": "text",
+                "label": "E"
+              },
+              {
+                "name": "5",
+                "type": "text",
+                "label": "F"
+              },
+              {
+                "name": "6",
+                "type": "text",
+                "label": "G"
+              },
+              {
+                "name": "7",
+                "type": "text",
+                "label": "H"
+              },
+              {
+                "name": "8",
+                "type": "text",
+                "label": "I"
+              },
+              {
+                "name": "9",
+                "type": "text",
+                "label": "J"
+              },
+              {
+                "name": "10",
+                "type": "text",
+                "label": "K"
+              },
+              {
+                "name": "11",
+                "type": "text",
+                "label": "L"
+              },
+              {
+                "name": "12",
+                "type": "text",
+                "label": "M"
+              },
+              {
+                "name": "13",
+                "type": "text",
+                "label": "N"
+              },
+              {
+                "name": "14",
+                "type": "text",
+                "label": "O"
+              },
+              {
+                "name": "15",
+                "type": "text",
+                "label": "P"
+              },
+              {
+                "name": "16",
+                "type": "text",
+                "label": "Q"
+              },
+              {
+                "name": "17",
+                "type": "text",
+                "label": "R"
+              },
+              {
+                "name": "18",
+                "type": "text",
+                "label": "S"
+              },
+              {
+                "name": "19",
+                "type": "text",
+                "label": "T"
+              },
+              {
+                "name": "20",
+                "type": "text",
+                "label": "U"
+              },
+              {
+                "name": "21",
+                "type": "text",
+                "label": "V"
+              },
+              {
+                "name": "22",
+                "type": "text",
+                "label": "W"
+              },
+              {
+                "name": "23",
+                "type": "text",
+                "label": "X"
+              },
+              {
+                "name": "24",
+                "type": "text",
+                "label": "Y"
+              },
+              {
+                "name": "25",
+                "type": "text",
+                "label": "Z"
+              }
+            ],
+            "type": "collection",
+            "label": "Values in columns"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": [
+        [
+          {
+            "id": 96,
+            "module": "placeholder:Placeholder",
+            "metadata": {
+              "designer": {
+                "x": 2989,
+                "y": -634
+              }
+            }
+          }
+        ]
+      ]
+    },
+    "zone": "us2.make.com",
+    "notes": []
+  }
+}

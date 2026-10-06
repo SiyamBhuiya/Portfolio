@@ -1,0 +1,860 @@
+{
+  "name": "Meeting Reply Handler - Wassenger Inbound",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// Extract and normalize phone number\nlet rawNumber = String(input.from || '').replace(/\\D/g, '');\n\nlet formattedNumber = rawNumber;\n\nif (rawNumber.startsWith('880') && rawNumber.length === 13) {\n  // Bangladesh number: strip '880' country code -> 10 digits\n  formattedNumber = rawNumber.slice(3);\n} else if (rawNumber.startsWith('65') && rawNumber.length === 10) {\n  // Singapore number: strip '65' country code -> 8 digits\n  formattedNumber = rawNumber.slice(2);\n} else if (rawNumber.startsWith('1') && rawNumber.length === 11) {\n  // US/exception number: format as 1-XXXXXXXXXX\n  formattedNumber = '1-' + rawNumber.slice(1);\n}\n\n// The actual WhatsApp message text - this was missing entirely before, causing every downstream node to see 'undefined'\nconst messageText = (input.textBody || input.message || input.text || '').trim();\n\nreturn [{\n  json: {\n    from: formattedNumber,\n    phone: formattedNumber,\n    messageText,\n    messageTextLower: messageText.toLowerCase(),\n    chatId: input.chatId,\n    deviceId: input.deviceId\n  }\n}];"
+      },
+      "id": "8e18818d-7173-4b77-bbf7-326829f5bbc7",
+      "name": "Normalize Incoming Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3696,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Mobile Number|rich_text",
+              "condition": "equals",
+              "richTextValue": "={{ $json.from }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b213afcc-2915-44af-86a6-0a036ccf5d65",
+      "name": "Notion - Find Client By Phone",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -3472,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the client's Notion record with their raw incoming message\nconst incoming = $('Normalize Incoming Message').first().json;\nconst client = $input.first().json;\n\nreturn [{\n  json: {\n    notionPageId: (client.id || '').replace(/-/g, ''),\n    clientName: client.property_name || client.property_Name || 'Client',\n    clientPhone: incoming.phone,\n    option1_text: client.property_option_1 || '',\n    option2_text: client.property_option_2 || '',\n    option1_start: client.property_option1start || '',\n    option1_end: client.property_option1_end || '',\n    option2_start: client.property_option2_start || '',\n    option2_end: client.property_option2_end || '',\n    messageText: incoming.messageText,\n    messageTextLower: incoming.messageTextLower,\n    buttonPayload: incoming.buttonPayload\n  }\n}];"
+      },
+      "id": "1339c0b7-242f-4fdb-8267-dda8e25cd5f7",
+      "name": "Merge Client + Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3248,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Quick keyword classification before falling back to AI\nconst msg = ($json.messageTextLower || '').toString();\n\nlet intent = 'UNCLEAR';\n\n// Exact match for the WhatsApp template's actual button labels - this is the strongest signal\nconst opt1Patterns = [/^time 1$/, /^1$/, /\\boption 1\\b/, /\\bfirst\\b/, /\\bone\\b/];\nconst opt2Patterns = [/^time 2$/, /^2$/, /\\boption 2\\b/, /\\bsecond\\b/, /\\btwo\\b/];\nconst negativePatterns = [/\\bno\\b/, /not available/, /can'?t/, /cannot/, /doesn'?t work/, /different time/, /another time/, /busy/, /unavailable/];\n\nif (opt1Patterns.some(p => p.test(msg))) intent = 'BOOK_OPTION_1';\nelse if (opt2Patterns.some(p => p.test(msg))) intent = 'BOOK_OPTION_2';\nelse if (negativePatterns.some(p => p.test(msg))) intent = 'NEEDS_RESCHEDULE';\nelse if (msg.length > 8) intent = 'NEEDS_AI_CHECK';\n\nreturn [{ json: { ...$json, quickIntent: intent } }];"
+      },
+      "id": "4416485a-6252-4d9f-bb87-2b57f7b931dc",
+      "name": "Quick Keyword Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3024,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.quickIntent }}",
+              "rightValue": "NEEDS_AI_CHECK",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "83181324-ff68-43ad-b9a9-6422a665d173",
+      "name": "IF Needs AI Parsing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2800,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI's JSON response and merge back with client context\nconst out = $json;\nconst aiRaw = out.text || out.content || out.message?.content || out.choices?.[0]?.message?.content || '{}';\nlet parsed;\ntry {\n  parsed = JSON.parse(String(aiRaw).replace(/```json|```/g, '').trim());\n} catch (e) {\n  parsed = { intent: 'UNCLEAR', proposed_datetime_iso: null, notes: 'Could not parse AI response' };\n}\n\nconst client = $('Merge Client + Message').first().json;\n\nreturn [{\n  json: {\n    ...client,\n    finalIntent: parsed.intent,\n    proposedDatetimeIso: parsed.proposed_datetime_iso,\n    aiNotes: parsed.notes\n  }\n}];"
+      },
+      "id": "d4a47703-e3da-43d7-bdf1-3366598827a2",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2224,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip node for the non-AI branch - just carries the quick keyword intent forward\nreturn [{ json: { ...$json, finalIntent: $json.quickIntent, proposedDatetimeIso: null, aiNotes: '' } }];"
+      },
+      "id": "32a7757d-d1c6-4c3e-aa03-c2fa5acf2879",
+      "name": "Carry Forward Quick Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2224,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.finalIntent }}",
+                    "rightValue": "BOOK_OPTION_1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.finalIntent }}",
+                    "rightValue": "BOOK_OPTION_2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.finalIntent }}",
+                    "rightValue": "PROPOSED_NEW_TIME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.finalIntent }}",
+                    "rightValue": "NEEDS_RESCHEDULE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8af3d0cd-4264-4989-b4d8-93ca962fdd52",
+      "name": "Route By Final Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2000,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "start": "={{ $json.option1_start }}",
+        "end": "={{ $json.option1_end }}",
+        "additionalFields": {
+          "summary": "={{ 'Annual Meeting - ' + $json.clientName }}"
+        }
+      },
+      "id": "7fd1258b-875a-44dd-ac04-5e71eacfd1ca",
+      "name": "GCal - Book Option 1",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -1104,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "start": "={{ $json.option2_start }}",
+        "end": "={{ $json.option2_end }}",
+        "additionalFields": {
+          "summary": "={{ 'Annual Meeting - ' + $json.clientName }}"
+        }
+      },
+      "id": "46393f7b-cbb7-4fdd-972c-d02006ce9cdb",
+      "name": "GCal - Book Option 2",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -1104,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "limit": 20,
+        "options": {
+          "timeMin": "={{ $json.proposedDatetimeIso }}",
+          "timeMax": "={{ $json.proposedDatetimeIso ? DateTime.fromISO($json.proposedDatetimeIso).plus({hours:1}).toISO() : $now.toISO() }}"
+        }
+      },
+      "id": "5424fb77-5219-4439-8cfc-4566a52c2771",
+      "name": "GCal - Check Proposed Time Free",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -1776,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// If the check returned 0 events, the proposed slot is free\nconst events = $input.all();\nconst isFree = events.length === 0 || (events.length === 1 && !events[0].json.id);\n\nconst client = $('Route By Final Intent').first().json;\n\nreturn [{ json: { ...client, proposedSlotIsFree: isFree } }];"
+      },
+      "id": "ff2443ce-17f4-4b90-a7e2-d5093cf83ac2",
+      "name": "Evaluate Free/Busy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proposedSlotIsFree }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "35431610-a5c2-4d32-9a31-209746a0be0c",
+      "name": "IF Proposed Slot Free",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1328,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "start": "={{ $json.proposedDatetimeIso }}",
+        "end": "={{ $now.fromISO($json.proposedDatetimeIso).plus({hours:1}).toISO() }}",
+        "additionalFields": {
+          "summary": "={{ 'Annual Meeting - ' + $json.clientName }}"
+        }
+      },
+      "id": "6ef055fd-b0fb-4170-8378-674fec7cbf66",
+      "name": "GCal - Auto-Book Proposed Time",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -1104,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notionPageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Meeting_Status|status",
+              "statusValue": "Meeting Scheduled"
+            },
+            {
+              "key": "Confirmed Time|rich_text",
+              "textContent": "={{ $json.confirmedTimeText }}"
+            },
+            {
+              "key": "Notes:|rich_text",
+              "textContent": "={{ $json.shortConfirmationText }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16f0a2c8-edbc-4ce6-87c9-c7fa0ef14584",
+      "name": "Notion - Mark Meeting Booked",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notionPageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Notes:|rich_text",
+              "textContent": "Meeting Scheduling Conflict. Manual Follow-up, Review Needed"
+            },
+            {
+              "key": "Meeting_Status|status",
+              "statusValue": "Manual Follow up needed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "66758ac7-6797-4c65-be08-8949071d4c3b",
+      "name": "Notion - Log Conflict For Manual Follow-up",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -1104,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notionPageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Unclear LOGs|rich_text",
+              "textContent": "={{ $json.aiNotes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "511e81c8-e5b4-47fe-964b-447d5fee51cb",
+      "name": "Notion - Log Unclear Reply",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -1776,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\":$('When Executed by Another Workflow').item.json.from , \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"You're confirmed! We'll see you on \" + $('Prepare Confirmed Time Text').first().json.confirmedTimeText.replace('Time: ', '') + \". Looking forward to it.\" } }}",
+        "options": {}
+      },
+      "id": "3e396931-dfd0-41ba-afe5-8091a546778e",
+      "name": "Wassenger - Send Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\":$('When Executed by Another Workflow').item.json.from , \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"Thanks! That time isn't available on our end - could you share another day/time that works for you? We'll get you booked in.\" } }}",
+        "options": {}
+      },
+      "id": "91a341c1-b45c-4488-9d56-8658dc8e7f20",
+      "name": "Wassenger - Ask For Another Time",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\":$('When Executed by Another Workflow').item.json.from , \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"Sorry, I didn't quite catch that - could you reply with 1, 2, or let us know what day/time works for you?\" } }}",
+        "options": {}
+      },
+      "id": "1eb9a382-c8fe-4f41-9a40-2f5f70c9f563",
+      "name": "Wassenger - Ask For Clarification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1552,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You interpret a WhatsApp reply from a client who was offered two meeting time options. Today's date is {{ $now.toISO() }}. Option 1 was: {{ $json.option1_text }}. Option 2 was: {{ $json.option2_text }}. Reply ONLY with strict JSON, no markdown: {\"intent\": \"BOOK_OPTION_1\" | \"BOOK_OPTION_2\" | \"PROPOSED_NEW_TIME\" | \"UNCLEAR\", \"proposed_datetime_iso\": \"<ISO 8601 datetime or null>\", \"notes\": \"<short plain-English summary of what the client said>\"}. If they suggest a day/time that isn't one of the two options, set intent to PROPOSED_NEW_TIME and fill proposed_datetime_iso with your best-guess resolved date/time (assume business hours 9am-5pm if no time given). If genuinely ambiguous, use UNCLEAR."
+            },
+            {
+              "content": "={{ $json.messageText }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -2576,
+        688
+      ],
+      "id": "7f121136-571e-46c3-a09d-b7f7fb1f005d",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -3920,
+        784
+      ],
+      "id": "f2060bf9-26ac-4b07-8425-9d78986b2c8f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine which slot actually got booked (Option 1, Option 2, or a proposed new time)\n// and build a single clean, human-readable time string for Notion - drop the unused option entirely.\nconst j = $('Route By Final Intent').first().json;\nconst calendarEvent = $json; // the Google Calendar node's own output\n\nlet chosenIso = null;\n\nif (j.finalIntent === 'BOOK_OPTION_1') {\n  chosenIso = j.option1_start;\n} else if (j.finalIntent === 'BOOK_OPTION_2') {\n  chosenIso = j.option2_start;\n} else if (j.finalIntent === 'PROPOSED_NEW_TIME') {\n  chosenIso = j.proposedDatetimeIso;\n}\n\nfunction ordinal(n) {\n  const s = ['th', 'st', 'nd', 'rd'];\n  const v = n % 100;\n  return n + (s[(v - 20) % 10] || s[v] || s[0]);\n}\n\nfunction formatTimeLine(iso) {\n  if (!iso) return 'Time: not confirmed';\n  const d = new Date(iso);\n  const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });\n  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });\n  return `Time: ${date} ${time}`;\n}\n\nfunction formatShort(iso) {\n  if (!iso) return 'Meeting scheduled';\n  const d = new Date(iso);\n  const day = ordinal(d.getDate());\n  const month = d.toLocaleDateString('en-US', { month: 'long' });\n  return `${day} ${month} meeting scheduled`;\n}\n\nreturn [{\n  json: {\n    notionPageId: j.notionPageId,\n    clientName: j.clientName,\n    clientPhone: j.clientPhone,\n    finalIntent: j.finalIntent,\n    calendarEventId: calendarEvent.id || null,\n    calendarEventLink: calendarEvent.htmlLink || null,\n    confirmedTimeText: formatTimeLine(chosenIso),\n    shortConfirmationText: formatShort(chosenIso)\n  }\n}];"
+      },
+      "id": "e1a5f38b-4fe0-4ccc-a8b9-1bb40f12293a",
+      "name": "Prepare Confirmed Time Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        592
+      ]
+    }
+  ],
+  "connections": {
+    "Normalize Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Notion - Find Client By Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Find Client By Phone": {
+      "main": [
+        [
+          {
+            "node": "Merge Client + Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Client + Message": {
+      "main": [
+        [
+          {
+            "node": "Quick Keyword Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quick Keyword Classify": {
+      "main": [
+        [
+          {
+            "node": "IF Needs AI Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Needs AI Parsing": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carry Forward Quick Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Route By Final Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry Forward Quick Intent": {
+      "main": [
+        [
+          {
+            "node": "Route By Final Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route By Final Intent": {
+      "main": [
+        [
+          {
+            "node": "GCal - Book Option 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GCal - Book Option 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GCal - Check Proposed Time Free",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Log Unclear Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GCal - Book Option 1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Confirmed Time Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GCal - Book Option 2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Confirmed Time Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GCal - Check Proposed Time Free": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Free/Busy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Free/Busy": {
+      "main": [
+        [
+          {
+            "node": "IF Proposed Slot Free",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Proposed Slot Free": {
+      "main": [
+        [
+          {
+            "node": "GCal - Auto-Book Proposed Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Log Conflict For Manual Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GCal - Auto-Book Proposed Time": {
+      "main": [
+        [
+          {
+            "node": "Prepare Confirmed Time Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mark Meeting Booked": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Send Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Log Conflict For Manual Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Ask For Another Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Log Unclear Reply": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Ask For Clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Confirmed Time Text": {
+      "main": [
+        [
+          {
+            "node": "Notion - Mark Meeting Booked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": []
+}

@@ -1,0 +1,713 @@
+{
+  "name": "Formulario instantaneo a Airtable",
+  "nodes": [
+    {
+      "parameters": {
+        "page": {
+          "__rl": true,
+          "value": "YOUR_ID",
+          "mode": "list",
+          "cachedResultName": "Owner",
+          "cachedResultUrl": "https://facebook.com/YOUR_ID"
+        },
+        "form": {
+          "__rl": true,
+          "value": "YOUR_ID",
+          "mode": "list",
+          "cachedResultName": "Formulario Nueva oferta 29/04/26"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.facebookLeadAdsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d1368d7d-b191-41d2-b928-3c1b38500145",
+      "name": "Facebook Lead Ads Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst fieldData = raw.field_data || [];\n\n// Build a lookup map from field_data array\nconst fields = {};\nfor (const f of fieldData) {\n  fields[f.name] = (f.values?.[0] ?? '').toString().trim();\n}\n\n// Phone: strip non-digits, then prepend + if missing\nlet telefono = fields.phone_number || fields.PHONE || fields.phone || '';\ntelefono = telefono.replace(/[^\\d+]/g, '');\nif (telefono && !telefono.startsWith('+')) { telefono = '+' + telefono; }\n\nreturn [{\n  json: {\n    email:      fields.email || '',\n    name:       fields.full_name || fields.name || '',\n    telefono:   telefono,\n    instagram:  fields.instagram || '',\n    lead_id:    String(raw.id || ''),\n    form_id:    String(raw.form_id || ''),\n    ad_id:      String(raw.ad_id || ''),\n    created_at: raw.created_time || new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "code-transform-001",
+      "name": "Transformar campos"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appWDudvl5i3hbrKg"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblKWRM5eDrTG47Uc"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.email }}",
+            "Name": "={{ $json.name }}",
+            "Telefono": "={{ $json.telefono }}",
+            "instagram": "={{ $json.instagram }}",
+            "ID": "={{ $json.lead_id }}",
+            "Created At": "={{ $json.created_at }}",
+            "Lead Status": "No le he contactado aún",
+            "Número de veces contactado": 0,
+            "Procedencia": "Ig Formulario"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false
+            },
+            {
+              "id": "Telefono",
+              "displayName": "Telefono",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false
+            },
+            {
+              "id": "instagram",
+              "displayName": "instagram",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false
+            },
+            {
+              "id": "LLamado",
+              "displayName": "LLamado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de llamada",
+              "displayName": "Fecha de llamada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "1a VEZ CONTACTADO",
+              "displayName": "1a VEZ CONTACTADO",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha Última LLamada",
+              "displayName": "Fecha Última LLamada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Landing",
+              "displayName": "Landing",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utm_source",
+              "displayName": "utm_source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utm_medium",
+              "displayName": "utm_medium",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utm_campaign",
+              "displayName": "utm_campaign",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utm_content",
+              "displayName": "utm_content",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Lead Status",
+              "displayName": "Lead Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "readOnly": false,
+              "removed": false,
+              "options": [
+                {
+                  "name": "No le he contactado aún",
+                  "value": "No le he contactado aún"
+                },
+                {
+                  "name": "Le he contactado pero no lo han cogido",
+                  "value": "Le he contactado pero no lo han cogido"
+                },
+                {
+                  "name": "Pendiente de llamar en otro momento",
+                  "value": "Pendiente de llamar en otro momento"
+                },
+                {
+                  "name": "Hemos empezado a trabajar juntos",
+                  "value": "Hemos empezado a trabajar juntos"
+                },
+                {
+                  "name": "He contactado y agendado cita",
+                  "value": "He contactado y agendado cita"
+                },
+                {
+                  "name": "No están interesados/cualificados",
+                  "value": "No están interesados/cualificados"
+                },
+                {
+                  "name": "Nos hemos reunido, pero no ha dado el paso",
+                  "value": "Nos hemos reunido, pero no ha dado el paso"
+                },
+                {
+                  "name": "Agendamos cita, pero no asistió",
+                  "value": "Agendamos cita, pero no asistió"
+                },
+                {
+                  "name": "No lo coge nunca",
+                  "value": "No lo coge nunca"
+                }
+              ]
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false
+            },
+            {
+              "id": "Created At",
+              "displayName": "Created At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false
+            },
+            {
+              "id": "Fecha último chat",
+              "displayName": "Fecha último chat",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ad Account",
+              "displayName": "Ad Account",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "METRICS",
+              "displayName": "METRICS",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas",
+              "displayName": "Notas",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Número de veces contactado",
+              "displayName": "Número de veces contactado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿Lo cogió?",
+              "displayName": "¿Lo cogió?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "readOnly": false,
+              "removed": false,
+              "options": [
+                {
+                  "name": "SI",
+                  "value": "SI"
+                },
+                {
+                  "name": "NO",
+                  "value": "NO"
+                }
+              ]
+            },
+            {
+              "id": "Setter",
+              "displayName": "Setter",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿VISTE EL WEBINAR POSTERIOR?",
+              "displayName": "¿VISTE EL WEBINAR POSTERIOR?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿POR QUÉ NO AGENDASTE CONSULTORÍA?",
+              "displayName": "¿POR QUÉ NO AGENDASTE CONSULTORÍA?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿TIENES UN NEGOCIO COMO ENTRENADOR, FISIO, NUTRI?",
+              "displayName": "¿TIENES UN NEGOCIO COMO ENTRENADOR, FISIO, NUTRI?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "FACTURAS MÍNIMO 1000€/MES?",
+              "displayName": "FACTURAS MÍNIMO 1000€/MES?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "TE GUSTARÍA TRABAJAR ONLINE?",
+              "displayName": "TE GUSTARÍA TRABAJAR ONLINE?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "TIENES CLIENTES NUEVOS CADA MES DE MANERA ESTABLE?",
+              "displayName": "TIENES CLIENTES NUEVOS CADA MES DE MANERA ESTABLE?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿DE DÓNDE SON?",
+              "displayName": "¿DE DÓNDE SON?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Página Web",
+              "displayName": "Página Web",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Redes sociales",
+              "displayName": "Redes sociales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿CUÁNTOS CLIENTES 1A1 TIENES ACTIVOS?",
+              "displayName": "¿CUÁNTOS CLIENTES 1A1 TIENES ACTIVOS?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿CUÁNTO TE PAGA CADA 1A1 AL MES?",
+              "displayName": "¿CUÁNTO TE PAGA CADA 1A1 AL MES?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿CUÁNTOS GRUPALES TIENES?",
+              "displayName": "¿CUÁNTOS GRUPALES TIENES?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿CUÁNTO FACTURA CADA GRUPAL AL MES DE MEDIA?",
+              "displayName": "¿CUÁNTO FACTURA CADA GRUPAL AL MES DE MEDIA?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "¿CUÁNTO QUIERES FACTURAR AL MES?",
+              "displayName": "¿CUÁNTO QUIERES FACTURAR AL MES?",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Procedencia",
+              "displayName": "Procedencia",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "readOnly": false,
+              "removed": false,
+              "options": [
+                {
+                  "name": "WhatsApp",
+                  "value": "WhatsApp"
+                },
+                {
+                  "name": "Ig MD",
+                  "value": "Ig MD"
+                },
+                {
+                  "name": "Ig Formulario",
+                  "value": "Ig Formulario"
+                },
+                {
+                  "name": "Klaviyo",
+                  "value": "Klaviyo"
+                },
+                {
+                  "name": "Calculadora",
+                  "value": "Calculadora"
+                }
+              ]
+            },
+            {
+              "id": "Calls",
+              "displayName": "Calls",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Campaña",
+              "displayName": "Campaña",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "FechaTexto",
+              "displayName": "FechaTexto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Cálculo",
+              "displayName": "Cálculo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "05ddbaab-ef46-4162-a197-fec0dacfc3c2",
+      "name": "Create a record"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "YOUR_ID",
+        "recipientPhoneNumber": "+10000000000",
+        "textBody": "=Ey, soy Jarvis 🎩 Te acaba de entrar un nuevo lead. ¡Contáctalo que se enfría! 😉💪🏼\n\n👤 *{{ $('Transformar campos').item.json.name || 'Sin nombre' }}*\n📞 {{ $('Transformar campos').item.json.telefono || 'Sin teléfono' }}\n📧 {{ $('Transformar campos').item.json.email || 'Sin email' }}\n🆔 Lead ID: {{ $('Transformar campos').item.json.lead_id || 'N/A' }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ],
+      "id": "wa-notify-owner-001",
+      "name": "Notify owner"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8765/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $('Transformar campos').item.json.telefono }}\",\n  \"message\": \"Qué tal 👋 soy Xavi de Mavics. Enhorabuena por rellenar nuestro formulario. Dentro de poco te pegaremos un toque para darte más detalles acerca de cómo trabajamos. ¡Estate pendiente! 🤗\"\n}",
+        "options": {
+          "timeout": 10000,
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "wacli-lead-wa-001",
+      "name": "WhatsApp al Lead"
+    }
+  ],
+  "connections": {
+    "Facebook Lead Ads Trigger": {
+      "main": [
+        [
+          {
+            "node": "Transformar campos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transformar campos": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a record": {
+      "main": [
+        [
+          {
+            "node": "Notify owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify owner": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp al Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

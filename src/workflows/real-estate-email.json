@@ -1,0 +1,874 @@
+{
+  "name": "Real Estate Agency Email Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "GPT-5.1"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an email classifier for a real estate agency. Return ONLY valid JSON, no explanation, no markdown.\n\nCategories:\n- buyer (wants to purchase a property)\n- seller (wants to sell or get a valuation)\n- rental (tenant or landlord inquiry)\n- agent (colleague, referral, B2B, recruiter)\n- other (anything else)\n\nRespond ONLY with this JSON structure:\n{\"category\": \"buyer\", \"confidence\": \"high\", \"language\": \"en\"}",
+              "role": "system"
+            },
+            {
+              "content": "=Classify this email:\n\nFROM: {{ $json.From }}\nSUBJECT: {{ $json.Subject }}\nBODY: {{ $json.snippet }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 100,
+          "temperature": 1
+        }
+      },
+      "id": "1c6442d9-da28-48b9-b276-acd7295832fe",
+      "name": "Classify Email (AI)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        -3456,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst aiOutput = $('Classify Email (AI)').first().json;\n\nconst raw =\n  aiOutput?.message?.content ||\n  aiOutput?.text ||\n  aiOutput?.choices?.[0]?.message?.content || '';\n\nlet parsed = { category: 'other', confidence: 'low', language: 'en' };\ntry {\n  const clean = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  const catMatch = raw.match(/\"category\"\\s*:\\s*\"(\\w+)\"/);\n  const langMatch = raw.match(/\"language\"\\s*:\\s*\"(\\w+)\"/);\n  if (catMatch) parsed.category = catMatch[1];\n  if (langMatch) parsed.language = langMatch[1];\n}\n\nreturn [{\n  json: {\n    ...data,\n    category:   parsed.category   || 'other',\n    confidence: parsed.confidence || 'low',\n    language:   parsed.language   || 'en',\n    labelName:  'RE/' + (parsed.category || 'other')\n  }\n}];"
+      },
+      "id": "b0f05223-c7d5-49b7-bf5a-60fa73c1f160",
+      "name": "Parse Category",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3184,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "GPT-5.1"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a professional real estate agent assistant based in Montreal, Canada.\n\nRules:\n- Write in the same language as the incoming email (French or English)\n- Be professional, warm, and concise (max 5 sentences)\n- Never promise specific prices or legal outcomes\n- Always suggest a clear next step (call, visit, send documents)\n- Sign off as: [Agent Name], [Agency Name]\n- Never mention that you are an AI\n- Do NOT include a subject line\n- Start directly with the greeting",
+              "role": "system"
+            },
+            {
+              "content": "=CONTEXT FOR THIS REPLY:\n{{ $json.templateContext }}\n\nEMAIL TO REPLY TO:\nFROM:{{ $('Get a thread').item.json.messages[0].From }}\nSUBJECT: {{ $json.subject }}\nTHREAD:\n{{ $json.historyText }}\n\nLANGUAGE: English\n\nWrite a professional reply draft."
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.4
+        }
+      },
+      "id": "d0c6eae1-ef9e-4f32-9050-1ff9b5006804",
+      "name": "Generate Draft (AI)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ $('Gmail Trigger2').item.json.Subject }}",
+        "message": "={{ $json.message.content }}",
+        "options": {
+          "sendTo": "={{ $('Get a thread').item.json.messages[0].From }}"
+        }
+      },
+      "id": "05ff0416-bd01-4856-b2e2-6829cdb1db62",
+      "name": "Create Gmail Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -1280,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b1",
+              "leftValue": "={{ $json.From }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b2",
+              "leftValue": "={{ $json.From }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b3",
+              "leftValue": "={{ $json.From }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b4",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "newsletter",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b5",
+              "leftValue": "={{ $json.From }}",
+              "rightValue": "@centris.ca",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b6",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "@realtor.ca",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b7",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "@mls.ca",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b8",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "unsubscribe",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b9",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "@mailchimp",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b10",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "@sendgrid",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b11",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "bounce",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b12",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "mailer-daemon",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b13",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "notifications@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b14",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "alerts@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b15",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "support@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "b16",
+              "leftValue": "={{ $json.snippet }}",
+              "rightValue": "info@googlemail",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "unsubscribe",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s2",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "newsletter",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s3",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "new listing alert",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s4",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "price drop alert",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s5",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "market report",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s6",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "automated message",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s7",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "do not reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "s8",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "out of office",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -3648,
+        1008
+      ],
+      "id": "21b7140a-0e03-4423-9c3c-780875d7ee59",
+      "name": "Filter1"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -4000,
+        1008
+      ],
+      "id": "a32c142f-c5a9-40f8-85ad-2b90dd5dbd6e",
+      "name": "Gmail Trigger2"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}",
+        "labelIds": [
+          "Label_YOUR_ID"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2704,
+        608
+      ],
+      "id": "dee91bc1-defe-4dd6-b65b-432e58f7fbbc",
+      "name": "Buyer1"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}",
+        "labelIds": [
+          "Label_YOUR_ID"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2704,
+        800
+      ],
+      "id": "206c549c-8bc6-4615-bea6-b94a18051d47",
+      "name": "Seller1"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}",
+        "labelIds": [
+          "Label_YOUR_ID"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2704,
+        992
+      ],
+      "id": "fdf48b2a-67df-4efb-9526-7c2c3c1bf971",
+      "name": "Rental1"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}",
+        "labelIds": [
+          "Label_YOUR_ID"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2704,
+        1184
+      ],
+      "id": "8cab4e16-e40e-4a50-8d2e-da07df2826f6",
+      "name": "Agent1"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}",
+        "labelIds": [
+          "Label_YOUR_ID"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2704,
+        1376
+      ],
+      "id": "e403eca4-bc8d-4081-ab30-0b5f0ad27b7a",
+      "name": "Other1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "",
+              "value": "=  Name: threadId     Value: {{ $json.threadId }}   Name: from         Value: {{ $json.From }}   Name: subject      Value: {{ $json.Subject }}   Name: messageId    Value: {{ $json.id }}   Name: labelIds     Value: {{ $json.labelIds }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3808,
+        1008
+      ],
+      "id": "0d7f3c2c-5d8f-40e0-bb9b-34419163348f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2416,
+        1376
+      ],
+      "id": "3e1d9b3c-b84e-4b2e-bff0-829722f765ec",
+      "name": "Mark a message as read"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst category = (data.category || 'other').toLowerCase();\n\n// ── All templates in one place ────────────────────────────────\n// Edit these anytime without touching any other node\nconst templates = {\n\n  buyer: {\n    context: `You are replying to a BUYER inquiry.\n    \nAlways include in your reply:\n1. Thank them for reaching out\n2. Ask for their budget range and desired area if not mentioned\n3. Ask for preferred property type (condo, house, duplex)\n4. Offer to schedule a discovery call or property visit\n5. Mention you have access to all MLS listings\n\nBooking link: https://calendly.com/YOURLINK\nPhone: +1 (514) XXX-XXXX\nAvailability: Monday to Friday, 9am to 6pm`,\n\n    signature: `Best regards,\n[Your Name]\nReal Estate Broker\n[Agency Name]\n+1 (514) XXX-XXXX\nwww.yourwebsite.com`\n  },\n\n  seller: {\n    context: `You are replying to a SELLER or property valuation request.\n\nAlways include in your reply:\n1. Express genuine interest in their property\n2. Offer a free Comparative Market Analysis (CMA)\n3. Ask for the property address and best time to connect\n4. Briefly mention your experience selling in their area\n5. Propose an in-person or virtual meeting this week\n\nBooking link: https://calendly.com/YOURLINK\nPhone: +1 (514) XXX-XXXX`,\n\n    signature: `Best regards,\n[Your Name]\nReal Estate Broker\n[Agency Name]\n+1 (514) XXX-XXXX\nwww.yourwebsite.com`\n  },\n\n  rental: {\n    context: `You are replying to a RENTAL inquiry (tenant or landlord).\n\nAlways include in your reply:\n1. Confirm you will verify property availability within 24h\n2. Ask for: desired move-in date, number of occupants, pets\n3. List required documents: 3 months pay stubs, photo ID,\n   credit check authorization form\n4. Offer to schedule a viewing at their convenience\n5. Mention your typical response time is within 24 hours\n\nBooking link: https://calendly.com/YOURLINK\nPhone: +1 (514) XXX-XXXX`,\n\n    signature: `Best regards,\n[Your Name]\nReal Estate Broker\n[Agency Name]\n+1 (514) XXX-XXXX\nwww.yourwebsite.com`\n  },\n\n  agent: {\n    context: `You are replying to a PROFESSIONAL contact\n(real estate agent, colleague, referral partner, or recruiter).\n\nAlways include in your reply:\n1. Acknowledge their message warmly and professionally\n2. Answer their specific question or request directly\n3. If it is a referral offer, express interest and ask for client details\n4. If it is a collaboration or co-listing, offer a quick call\n5. Keep the tone collegial and brief\n\nPhone: +1 (514) XXX-XXXX`,\n\n    signature: `Best regards,\n[Your Name]\nReal Estate Broker\n[Agency Name]\n+1 (514) XXX-XXXX`\n  },\n\n  other: {\n    context: `You are replying to a general inquiry that does not fit\na specific real estate category.\n\nAlways include in your reply:\n1. Acknowledge their message politely\n2. Answer their question clearly if possible\n3. Direct them to the right contact or next step\n4. Keep it short and professional\n\nPhone: +1 (514) XXX-XXXX`,\n\n    signature: `Best regards,\n[Your Name]\nReal Estate Broker\n[Agency Name]\n+1 (514) XXX-XXXX`\n  }\n\n};\n\n// ── Pick the right template ───────────────────────────────────\nconst selected = templates[category] || templates['other'];\n\nconsole.log('Category:', category);\nconsole.log('Template loaded:', category in templates ? 'exact match' : 'fallback to other');\n\nreturn [{\n  json: {\n    ...data,\n    templateContext:  selected.context,\n    templateSignature: selected.signature\n  }\n}];"
+      },
+      "id": "2124258e-8893-4cdf-8435-1dfb9a0e417d",
+      "name": "Build Thread Text1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1840,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get current thread data from the Gmail \"Get\" node\nconst threadData = $input.first().json;\n\n// 2. Get the Category from your Switch node\n// IMPORTANT: Change 'Switch' to the exact name of your Switch node\nconst switchNode = $('Switch').item.json;\nconst category = switchNode.category || 'No Category';\n\n/**\n * HELPER FUNCTIONS\n */\nfunction decodeBase64(encoded) {\n  if (!encoded) return '';\n  const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');\n  try {\n    return Buffer.from(base64, 'base64').toString('utf-8');\n  } catch(e) { return ''; }\n}\n\nfunction cleanEmail(str) {\n  if (!str) return '';\n  const match = str.match(/<([^>]+)>/) || [null, str];\n  return match[1].toLowerCase().trim();\n}\n\nfunction getHeader(headers, name) {\n  if (!Array.isArray(headers)) return '';\n  const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());\n  return h?.value || '';\n}\n\nfunction extractBody(payload) {\n  if (!payload) return '';\n  // Simple body\n  if (payload.body?.data) return decodeBase64(payload.body.data);\n  // Multipart body\n  if (payload.parts?.length > 0) {\n    const plain = payload.parts.find(p => p.mimeType === 'text/plain');\n    if (plain?.body?.data) return decodeBase64(plain.body.data);\n    const html = payload.parts.find(p => p.mimeType === 'text/html');\n    if (html?.body?.data) {\n      return decodeBase64(html.body.data)\n        .replace(/<[^>]*>/g, ' ')\n        .replace(/\\s{2,}/g, '\\n').trim();\n    }\n    // Recursive check for nested parts\n    for (const part of payload.parts) {\n      if (part.parts) {\n        const nested = extractBody(part);\n        if (nested) return nested;\n      }\n    }\n  }\n  return '';\n}\n\n/**\n * MAIN PROCESSING logic\n */\nconst messages = threadData.messages || [];\n\nif (messages.length === 0) {\n  return [{ json: { skip: true, reason: 'empty thread' } }];\n}\n\n// Sort oldest to newest to track conversation flow\nconst sorted = [...messages].sort((a, b) =>\n  parseInt(a.internalDate || 0) - parseInt(b.internalDate || 0)\n);\n\n// Determine the \"Target User\" (the person who sent the most recent email)\nconst latestMessage = sorted[sorted.length - 1];\nconst targetSenderRaw = getHeader(latestMessage.payload?.headers, 'from');\nconst targetEmail = cleanEmail(targetSenderRaw);\n\n// Filter the history to ONLY emails sent by this specific user\nconst userHistory = sorted.filter(m => {\n  const sender = getHeader(m.payload?.headers, 'from');\n  return cleanEmail(sender) === targetEmail;\n});\n\n// Build the text block of the user's history\nconst historyText = userHistory.map((m, index) => {\n  const date = getHeader(m.payload?.headers, 'date');\n  const body = extractBody(m.payload) || m.snippet || '(no body)';\n  const trimmed = body.length > 2000 ? body.substring(0, 2000) + '... [trimmed]' : body;\n  \n  return `[EMAIL #${index + 1}]\\nDate: ${date}\\nContent: ${trimmed}`;\n}).join('\\n\\n' + '─'.repeat(40) + '\\n\\n');\n\n// FINAL OUTPUT\nreturn [{\n  json: {\n    category: category,\n    fromName: targetSenderRaw,\n    fromEmail: targetEmail,\n    userSentCount: userHistory.length, // How many emails this user sent in this thread\n    totalThreadMessages: sorted.length,\n    subject: getHeader(latestMessage.payload?.headers, 'Subject'),\n    threadId: threadData.id,\n    latestMessageId: latestMessage.id,\n    historyText: historyText,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        992
+      ],
+      "id": "3d50e9f0-bf48-416d-a485-551c7e185c56",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "get",
+        "threadId": "={{ $json.threadId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -2400,
+        992
+      ],
+      "id": "9a0887ff-d92e-41d7-8274-b62ec90e1fac",
+      "name": "Get a thread"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "buyer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "YOUR_NOTION_ID"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "buyer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "seller",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "YOUR_NOTION_ID"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "seller"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "rental",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "YOUR_NOTION_ID"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rental"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "agent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "YOUR_NOTION_ID"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "agent"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "0e3e52fe-eed3-4df9-99e2-5c85c997f837",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -3024,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail Trigger2').item.json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1024,
+        992
+      ],
+      "id": "b39c5170-7215-4add-8d60-b6472dd7ab8a",
+      "name": "Mark a message as read1"
+    }
+  ],
+  "connections": {
+    "Classify Email (AI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Category": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Draft (AI)": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter1": {
+      "main": [
+        [
+          {
+            "node": "Classify Email (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Filter1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Other1": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent1": {
+      "main": [
+        [
+          {
+            "node": "Get a thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rental1": {
+      "main": [
+        [
+          {
+            "node": "Get a thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seller1": {
+      "main": [
+        [
+          {
+            "node": "Get a thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buyer1": {
+      "main": [
+        [
+          {
+            "node": "Get a thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Thread Text1": {
+      "main": [
+        [
+          {
+            "node": "Generate Draft (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Build Thread Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a thread": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Buyer1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Seller1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rental1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Gmail Draft": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

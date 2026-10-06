@@ -1,0 +1,536 @@
+{
+  "name": "Manual Meeting Scheduler - Owner-Instructed Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "ownerPhone"
+            },
+            {
+              "name": "messageText"
+            },
+            {
+              "name": "recipientNameGuess"
+            }
+          ]
+        }
+      },
+      "id": "e2407c87-bd17-4f7b-b919-d881fe0aec7a",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -5488,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build human-readable option text for the WhatsApp template, and the data\n// needed to save the proposal to Notion and notify the owner.\nconst j = $json;\n\nfunction formatOption(iso) {\n  if (!iso) return null;\n  const d = new Date(iso);\n  const date = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });\n  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });\n  return `${date}, ${time}`;\n}\n\n// Normalize the client's phone number to include the Singapore country\n// code (+65), without double-adding it if it's already there.\nfunction addSingaporeCode(phone) {\n  if (!phone) return '';\n  let cleaned = String(phone).replace(/[\\s\\-()]/g, '');\n\n  if (cleaned.startsWith('+')) {\n    // Already has a country code of some kind - leave it as is.\n    return cleaned;\n  }\n  if (cleaned.startsWith('65') && cleaned.length > 8) {\n    // Already has 65 prefix without the +.\n    return '+' + cleaned;\n  }\n  if (cleaned.startsWith('0')) {\n    // Local format like +10000000000 - drop the leading 0 before adding +65.\n    cleaned = cleaned.slice(1);\n  }\n  return '+65' + cleaned;\n}\n\nconst option1Text = formatOption(j.option1Start);\nconst option2Text = formatOption(j.option2Start) || option1Text;\nconst clientPhone = addSingaporeCode(j.clientPhone);\n\nreturn [{\n  json: {\n    notionPageId: j.notionPageId,\n    clientName: j.clientName,\n    clientPhone: clientPhone,\n    ownerPhone: j.ownerPhone,\n    option1Start: j.option1Start,\n    option2Start: j.option2Start,\n    option1_text: option1Text,\n    option2_text: option2Text,\n    timeOptionsSummary: option2Text && option2Text !== option1Text\n      ? `Option 1: ${option1Text} | Option 2: ${option2Text}`\n      : `Option 1: ${option1Text}`\n  }\n}];"
+      },
+      "id": "b305d939-6b1c-4cce-ad08-7958588941e4",
+      "name": "Prepare Proposal Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3344,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notionPageId }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Meeting_Status|status",
+              "statusValue": "Scheduling in progress"
+            },
+            {
+              "key": "Option 1|rich_text",
+              "textContent": "={{ $json.option1_text }}"
+            },
+            {
+              "key": "Option1start|rich_text",
+              "textContent": "={{ $json.option1Start }}"
+            },
+            {
+              "key": "Option 2|rich_text",
+              "textContent": "={{ $json.option2_text }}"
+            },
+            {
+              "key": "Option2Start|rich_text",
+              "textContent": "={{ $json.option2Start }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1655b36d-06d7-45cb-9348-352c0039f27e",
+      "name": "Notion - Save Proposed Time Options",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -3136,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"phone\": $('Prepare Proposal Text').item.json.clientPhone,\n  \"device\": \"6a891a3df8aa225663ce33d4\",\n  \"template\": {\n    \"name\": \"meeting_scheduling\",\n    \"language\": \"en_US\",\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          { \"type\": \"text\", \"text\": $('Prepare Proposal Text').item.json.clientName },\n          { \"type\": \"text\", \"text\": $('Prepare Proposal Text').item.json.option1_text || '' },\n          { \"type\": \"text\", \"text\": $('Prepare Proposal Text').item.json.option2_text }\n        ]\n      }\n    ]\n  }\n} }}",
+        "options": {}
+      },
+      "id": "92950a6e-210a-41af-9636-99758b88274b",
+      "name": "Wassenger - Send Meeting Proposal (Template)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2896,
+        448
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\": $('Prepare Proposal Text').item.json.ownerPhone, \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"Sent \" + $('Prepare Proposal Text').item.json.clientName + \" two time options - \" + $('Prepare Proposal Text').item.json.timeOptionsSummary + \". I'll let you know once they pick one.\" } }}",
+        "options": {}
+      },
+      "id": "44487983-1f03-4f39-8ac8-b0dd2241b2fa",
+      "name": "Wassenger - Notify Owner Proposal Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        448
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ \"You extract meeting-scheduling constraints from an owner's WhatsApp instruction.\\n\\n\" + \"Today's date is \" + $now.toISODate() + \" (\" + $now.format('cccc') + \").\\n\\n\" + \"Owner message: \\\"\" + $json.messageText + \"\\\"\\n\" + \"Client name guess (from earlier processing, may be null or wrong - prefer what the message itself says if it names someone): \" + ($json.recipientNameGuess || \"null\") + \"\\n\\n\" + \"Return ONLY valid JSON, no markdown, no code fences, in exactly this shape:\\n\" + \"{\\\"clientName\\\": string or null, \\\"earliestDateIso\\\": \\\"YYYY-MM-DD\\\" or null, \\\"preferredTimeOfDay\\\": \\\"morning\\\" | \\\"afternoon\\\" | \\\"evening\\\" | \\\"any\\\", \\\"notes\\\": string}\\n\\n\" + \"Rules:\\n\" + \"- clientName: the name of the client to book with. Prefer the name as it appears in the owner's message; fall back to the client name guess only if the message itself doesn't name anyone.\\n\" + \"- earliestDateIso: resolve any relative date ('next Tuesday', 'this week', 'tomorrow', 'ASAP') into an actual YYYY-MM-DD date using today's date above as the reference point. 'ASAP'/'as soon as possible' should resolve to today's date. If no timeframe is given at all, use null.\\n\" + \"- preferredTimeOfDay: 'morning' (before 12pm), 'afternoon' (12pm-5pm), 'evening' (after 5pm), or 'any' if unspecified.\\n\" + \"- notes: a short clean rewrite of anything else relevant from the message (special requests, context, urgency) - empty string if nothing extra.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "e0a454d1-a59f-4b76-8007-e257b5fb05fb",
+      "name": "Extract Scheduling Constraints1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -5264,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI's constraint extraction, using the OpenAI Responses API output shape\nconst out = $json;\n\nconst aiRaw =\n  out.output?.[0]?.content?.find(part => part?.type === 'output_text')?.text ||\n  out.output?.[0]?.content?.[0]?.text ||\n  out.text || out.content || out.message?.content ||\n  out.choices?.[0]?.message?.content || out.output_text || '{}';\n\nlet parsed;\ntry {\n  parsed = JSON.parse(String(aiRaw).replace(/```json|```/g, '').trim());\n} catch (e) {\n  parsed = { clientName: null, earliestDateIso: null, preferredTimeOfDay: 'any', notes: '' };\n}\n\nconst trigger = $('Execute Workflow Trigger').first().json;\n\nreturn [{\n  json: {\n    ownerPhone: trigger.ownerPhone,\n    messageText: trigger.messageText,\n    clientName: parsed.clientName || trigger.recipientNameGuess || null,\n    earliestDateIso: parsed.earliestDateIso,\n    preferredTimeOfDay: parsed.preferredTimeOfDay || 'any',\n    notes: parsed.notes || ''\n  }\n}];"
+      },
+      "id": "27bc8042-5e86-44d1-b65e-fab759ea06fb",
+      "name": "Parse Extracted Constraints1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4912,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "CLIENT LIST 2026 UPDATED - FINAL - CLIENTS.csv"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Name|rich_text",
+              "condition": "contains",
+              "richTextValue": "={{ $json.clientName }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6373f44c-3626-4cae-a1d8-3040daf59887",
+      "name": "Notion - Find Client By Name1",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -4688,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24464637-38fe-4eef-a5da-b9d91a16678e",
+      "name": "IF Client Found1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4464,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the found client's Notion record with the extracted scheduling constraints\nconst client = $json;\nconst constraints = $('Parse Extracted Constraints1').first().json;\n\nreturn [{\n  json: {\n    notionPageId: (client.id || '').replace(/-/g, ''),\n    clientName: client.property_name || constraints.clientName || 'Client',\n    clientPhone: client.property_mobile_number || '',\n    ownerPhone: constraints.ownerPhone,\n    earliestDateIso: constraints.earliestDateIso,\n    preferredTimeOfDay: constraints.preferredTimeOfDay\n  }\n}];"
+      },
+      "id": "09a9e60b-ba0d-4fb8-923c-ee69c5a386de",
+      "name": "Merge Client + Constraints1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4240,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "name@example.com",
+          "mode": "list",
+          "cachedResultName": "name@example.com"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $json.earliestDateIso ? DateTime.fromISO($json.earliestDateIso).toISO() : $now.plus({days:1}).toISO() }}",
+          "timeMax": "={{ $json.earliestDateIso ? DateTime.fromISO($json.earliestDateIso).plus({days:60}).toISO() : $now.plus({days:61}).toISO() }}"
+        }
+      },
+      "id": "f9baf476-59ce-4729-9b1f-678a1dda8fe9",
+      "name": "Google Calendar - Get Events In Window1",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -4016,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find up to TWO free 1-hour slots, 9am-5pm Mon-Fri, on or after the requested\n// date (or tomorrow, if no date constraint given), honoring the owner's\n// time-of-day preference where possible. We propose these to the client\n// instead of auto-booking - they pick one via the WhatsApp template.\nconst busyEvents = $input.all().map(item => ({\n  start: new Date(item.json.start?.dateTime || item.json.start?.date),\n  end: new Date(item.json.end?.dateTime || item.json.end?.date)\n})).filter(e => !isNaN(e.start) && !isNaN(e.end));\n\nconst client = $('Merge Client + Constraints1').first().json;\n\nconst businessStartHour = 9;\nconst businessEndHour = 17;\nconst slotLengthMin = 60;\nconst slotsNeeded = 2;\n\nlet cursor = client.earliestDateIso ? new Date(client.earliestDateIso) : new Date();\nif (!client.earliestDateIso) cursor.setDate(cursor.getDate() + 1);\ncursor.setHours(0, 0, 0, 0);\n\nconst searchWindowDays = 60;\nconst endDate = new Date(cursor);\nendDate.setDate(endDate.getDate() + searchWindowDays);\n\nconst pref = (client.preferredTimeOfDay || 'any').toLowerCase();\n\nfunction hourMatchesPref(h) {\n  if (pref === 'morning') return h < 12;\n  if (pref === 'afternoon') return h >= 12;\n  return true;\n}\n\nfunction search(honorPref) {\n  const found = [];\n  for (let d = new Date(cursor); d <= endDate && found.length < slotsNeeded; d.setDate(d.getDate() + 1)) {\n    const dow = d.getDay();\n    if (dow === 0 || dow === 6) continue;\n    for (let h = businessStartHour; h < businessEndHour; h += slotLengthMin / 60) {\n      if (honorPref && !hourMatchesPref(h)) continue;\n      const slotStart = new Date(d);\n      slotStart.setHours(h, 0, 0, 0);\n      const slotEnd = new Date(slotStart.getTime() + slotLengthMin * 60000);\n      const overlaps = busyEvents.some(ev => slotStart < ev.end && slotEnd > ev.start);\n      const alreadyFound = found.some(s => s.start === slotStart.toISOString());\n      if (!overlaps && !alreadyFound && slotStart > new Date()) {\n        found.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });\n        if (found.length >= slotsNeeded) break;\n      }\n    }\n  }\n  return found;\n}\n\n// First pass: honor the time-of-day preference strictly\nlet slots = search(true);\n\n// Fallback: if we couldn't fill both slots honoring the preference, top up ignoring it\nif (slots.length < slotsNeeded) {\n  const extra = search(false).filter(s => !slots.some(existing => existing.start === s.start));\n  slots = slots.concat(extra).slice(0, slotsNeeded);\n}\n\nreturn [{\n  json: {\n    ...client,\n    slotFound: slots.length > 0,\n    slotCount: slots.length,\n    option1Start: slots[0] ? slots[0].start : null,\n    option1End: slots[0] ? slots[0].end : null,\n    option2Start: slots[1] ? slots[1].start : null,\n    option2End: slots[1] ? slots[1].end : null\n  }\n}];"
+      },
+      "id": "f6470c3c-1a4d-424e-a07c-40db96a83898",
+      "name": "Find First Available Slot1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3792,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.slotFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "edc6b443-5968-407d-82d3-c6cd71c84468",
+      "name": "IF Slot Found1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3568,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\": String($json.ownerPhone || ''), \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"I couldn't find a free slot for \" + $json.clientName + \" in the next 60 days after the date you gave me - could you check the calendar or give me a wider window?\" } }}",
+        "options": {}
+      },
+      "id": "3ab61d2d-f19b-49da-a3af-202af9e112c4",
+      "name": "Wassenger - No Slot Found1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3344,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"phone\": String($('Parse Extracted Constraints1').first().json.ownerPhone || ''), \"device\": \"6a891a3df8aa225663ce33d4\", \"message\": \"I couldn't find \" + ($('Parse Extracted Constraints1').first().json.clientName || 'that client') + \" in the database - could you double-check the name or spelling?\" } }}",
+        "options": {}
+      },
+      "id": "576d94d9-5e39-4b04-a7ab-59b20a1e7ddc",
+      "name": "Wassenger - Client Not Found1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4240,
+        736
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2672,
+        448
+      ],
+      "id": "63787f33-fc33-4549-ada0-9584914fd949",
+      "name": "Wait"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Scheduling Constraints1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Proposal Text": {
+      "main": [
+        [
+          {
+            "node": "Notion - Save Proposed Time Options",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Save Proposed Time Options": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Send Meeting Proposal (Template)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wassenger - Send Meeting Proposal (Template)": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Scheduling Constraints1": {
+      "main": [
+        [
+          {
+            "node": "Parse Extracted Constraints1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Extracted Constraints1": {
+      "main": [
+        [
+          {
+            "node": "Notion - Find Client By Name1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Find Client By Name1": {
+      "main": [
+        [
+          {
+            "node": "IF Client Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Client Found1": {
+      "main": [
+        [
+          {
+            "node": "Merge Client + Constraints1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wassenger - Client Not Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Client + Constraints1": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Get Events In Window1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Get Events In Window1": {
+      "main": [
+        [
+          {
+            "node": "Find First Available Slot1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find First Available Slot1": {
+      "main": [
+        [
+          {
+            "node": "IF Slot Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Slot Found1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Proposal Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wassenger - No Slot Found1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Wassenger - Notify Owner Proposal Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {},
+  "nodeGroups": []
+}

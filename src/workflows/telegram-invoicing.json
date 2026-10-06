@@ -1,0 +1,1268 @@
+{
+  "name": "Telegram AI agent and automated invoicing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        352
+      ],
+      "id": "eb5d18b2-b74b-4570-abe1-f5102959e330",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        864,
+        352
+      ],
+      "id": "e4e76b4f-c72b-4bfd-bc2e-2c9ca007a475",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "https://sandbox.plaid.com/transactions/get",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "YOUR_PLAID_CLIENT_ID"
+            },
+            {
+              "name": "secret",
+              "value": "YOUR_PLAID_SECRET"
+            },
+            {
+              "name": "access_token",
+              "value": "=YOUR_PLAID_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        368
+      ],
+      "id": "eccdb1ce-af5e-42f2-bf42-cdd71d6e87cc",
+      "name": "Plaid"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        368
+      ],
+      "id": "b509f551-913a-4a82-8863-64258c3b3223",
+      "name": "Logic"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "YOUR_NOTION_ID",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1536,
+        368
+      ],
+      "id": "e73c46ff-77bd-44d5-8ed0-f8b2bbd1d536",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        640,
+        352
+      ],
+      "id": "0fdb42c2-5d17-482f-b52e-1903406d9888",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -32,
+        -272
+      ],
+      "id": "7901428c-9557-4546-844c-2997c7067792",
+      "name": "Telegram Trigger"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Google Sheets data agent. You have 3 tools: read clients, read checking, read bank.\nRULES: Use ONLY tool data. Never hallucinate. Act immediately on any data query — do not ask permission. Read before writing. Only say \"Data Agent active. Which sheet?\" if the message is a pure greeting.\nWhen user asks for report/Summery do not output the full sheet only Give the summery\nUser: {{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        416,
+        -272
+      ],
+      "id": "edadba94-6504-49fd-864f-264040b8784c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-7",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.7"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        -48
+      ],
+      "id": "da6237b3-d4ca-4b02-a8da-c170d250e026",
+      "name": "Anthropic Chat Model"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        -272
+      ],
+      "id": "b1b6b69f-f4e0-474d-814b-9c317b5cb23f",
+      "name": "Send a text message"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "DEEH 2025",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 123870600,
+          "mode": "list",
+          "cachedResultName": "DEEH CHECKING 2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=123870600"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A1:H200"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        320,
+        -48
+      ],
+      "id": "c083e7fb-d864-47ef-98f5-8af569703bcc",
+      "name": "read checking"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "invoice",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 525862512,
+          "mode": "list",
+          "cachedResultName": "Clientes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=525862512"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A1:F30"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        -48
+      ],
+      "id": "d6ba4de8-b6cb-499a-a7c0-146b80057fcc",
+      "name": "read clients"
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to update a cell. Requirements: sheetName (string), rowIndex (number), columnLetter (string), and newValue (string/number)",
+        "jsCode": "const input = $json;\n\nif (!input.sheetName || !input.rowIndex || !input.columnLetter || !input.newValue) {\n  return {\n    error: \"Missing parameters. Required: sheetName, rowIndex, columnLetter, newValue.\"\n  };\n}\n\nconst targetRange = `${input.sheetName}!${input.columnLetter}${input.rowIndex}`;\n\ntry {\n  return {\n    action: \"update\",\n    range: targetRange,\n    value: input.newValue,\n    status: \"Pending Execution\",\n    confirmation: `Prepared to update ${input.sheetName} at ${input.columnLetter}${input.rowIndex} with ${input.newValue}`\n  };\n} catch (error) {\n  return {\n    success: false,\n    message: error.message\n  };\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        576,
+        -48
+      ],
+      "id": "191edabc-f5e9-4c3d-ab37-ce7218493014",
+      "name": "update sheet"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "Invoice 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Clientes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Name__using_to_match_', ``, 'string') }}",
+            "Direccion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Direccion', ``, 'string') }}",
+            "City and State": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('City_and_State', ``, 'string') }}",
+            "Spaces": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Spaces', ``, 'string') }}",
+            "Amount per Space": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Amount_per_Space', ``, 'string') }}",
+            "Total amount": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Total_amount', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "Name"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Direccion",
+              "displayName": "Direccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "City and State",
+              "displayName": "City and State",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Spaces",
+              "displayName": "Spaces",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount per Space",
+              "displayName": "Amount per Space",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total amount",
+              "displayName": "Total amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        704,
+        -48
+      ],
+      "id": "61b21b41-c749-4ae9-9c58-6fc84acae2e5",
+      "name": "Update Clients"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "DEEH 2025",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 123870600,
+          "mode": "list",
+          "cachedResultName": "DEEH CHECKING 2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=123870600"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "DATE": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('DATE', ``, 'string') }}",
+            "W/D": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('W_D', ``, 'string') }}",
+            "PAYER/PAYEE": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('PAYER_PAYEE', ``, 'string') }}",
+            "CATEGORY": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('CATEGORY', ``, 'string') }}",
+            "DESCRIPTION": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('DESCRIPTION', ``, 'string') }}",
+            " DEPOSITS ": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('_DEPOSITS_', ``, 'string') }}",
+            " WITHDRAWL ": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('_WITHDRAWL_', ``, 'string') }}",
+            " BALANCE ": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('_BALANCE_', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "PAYER/PAYEE"
+          ],
+          "schema": [
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "W/D",
+              "displayName": "W/D",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYER/PAYEE",
+              "displayName": "PAYER/PAYEE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CATEGORY",
+              "displayName": "CATEGORY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DESCRIPTION",
+              "displayName": "DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " DEPOSITS ",
+              "displayName": " DEPOSITS ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " WITHDRAWL ",
+              "displayName": " WITHDRAWL ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " BALANCE ",
+              "displayName": " BALANCE ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        832,
+        -48
+      ],
+      "id": "921d7aad-b0bb-420c-870e-d2ccf5de0e74",
+      "name": "Update checking"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "invoice",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 525862512,
+          "mode": "list",
+          "cachedResultName": "Clientes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=525862512"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRangeA1",
+              "range": "A:J"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        192,
+        352
+      ],
+      "id": "ab8db2fc-d6ae-4e5f-9d37-78c4d105a69b",
+      "name": "Get Clients"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over all incoming clients from the Google Sheet\nfor (const item of $input.all()) {\n  \n  // 1. Map your Google Sheet columns (Update the text inside the brackets to match your exact column headers)\n  const spaces = parseFloat(item.json['Spaces']) || 0;\n  const price = parseFloat(item.json['Amount per Space']) || 0;\n\n  // 2. Calculate the Total Price\n  item.json.TotalPrice = spaces * price;\n\n  // 3. Generate the current month string (e.g., \"April 2026\")\n  const currentDate = new Date();\n  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });\n  item.json.InvoiceMonth = monthFormatter.format(currentDate);\n\n  // 4. (Optional) Generate a unique Invoice Number for the PDF and Plaid tracking\n  const clientName = item.json['Client Name'] || 'Unknown';\n  // Removes spaces from the client name for a clean ID: e.g., \"INV-4-2026-JohnDoe\"\n  item.json.InvoiceNumber = `INV-${currentDate.getMonth() + 1}-${currentDate.getFullYear()}-${clientName.replace(/\\s+/g, '')}`;\n\n}\n\n// Return the updated data to pass into the Loop Node\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        352
+      ],
+      "id": "f44da7df-4270-47ad-b85d-c8f9074a66b9",
+      "name": "Data Prep"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "Spaces",
+              "value": "={{ $json.Spaces }}",
+              "type": "string"
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "Total amount",
+              "value": "={{ $json['Total amount'] }}",
+              "type": "string"
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "Amount per Space",
+              "value": "={{ $json['Amount per Space'] }}",
+              "type": "string"
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "City and State",
+              "value": "={{ $json['City and State'] }}",
+              "type": "string"
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "Direccion",
+              "value": "={{ $json.Direccion }}",
+              "type": "string"
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "name": "Name",
+              "value": "={{ $json.Name.split('TRANSPORTATION AND LOGISTICS') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        64
+      ],
+      "id": "2e46d094-8bbf-4538-ad9d-399eaa7c4518",
+      "name": "Stringyfy data"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "text": " {Date}",
+              "replaceText": "={{ $today }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Number}",
+              "replaceText": "={{ ($itemIndex + 10).toString() }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Client}",
+              "replaceText": "={{ $('Data Prep').item.json.Name }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Space}",
+              "replaceText": "={{ $('Stringyfy data').item.json.Spaces }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Amount}",
+              "replaceText": "={{ $('Stringyfy data').item.json['Amount per Space'] }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Total Amount}",
+              "replaceText": "={{ $('Stringyfy data').item.json['Total amount'] }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Road}",
+              "replaceText": "={{ $('Stringyfy data').item.json.Direccion }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{City}",
+              "replaceText": "={{ $('Stringyfy data').item.json['City and State'] }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{Month}",
+              "replaceText": "={{$now.format('MMMM')}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        64
+      ],
+      "id": "6a664da0-9c18-4025-9b97-4698aa163f92",
+      "name": "Create Invoice"
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "Excel- Facturas DEEH",
+          "cachedResultUrl": "https://docs.google.com/document/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "name": "={{ $('Data Prep').item.json.Name }} Invoice",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1312,
+        64
+      ],
+      "id": "a85f4faf-0481-444e-b502-f09015c96a59",
+      "name": "Get Invoice File"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Get Invoice File').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf",
+              "sheetsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        64
+      ],
+      "id": "aa9d9a67-61b2-4907-8c4b-5f7d871ebf42",
+      "name": "Convert to PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (let item of $input.all()) {\n  if (item.binary && item.binary.data) {\n    // 1. Get original name from Drive\n    let originalName = item.binary.data.fileName || 'document';\n\n    // 2. Remove the old extension (everything after the last dot)\n    let baseName = originalName.lastIndexOf('.') !== -1 \n      ? originalName.substring(0, originalName.lastIndexOf('.')) \n      : originalName;\n\n    // 3. Force the new filename and MIME type\n    item.binary.data.fileName = `${baseName}.pdf`;\n    item.binary.data.mimeType = 'application/pdf';\n  }\n}\n\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        64
+      ],
+      "id": "e640912d-6bc2-4e8d-8bf2-c6e6d9c06f39",
+      "name": "Rename file to PDF"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "helllo",
+        "message": "Here is your invoice",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        64
+      ],
+      "id": "beaa5840-f466-4947-a8dc-f2db07c28058",
+      "name": "Create a Draft"
+    },
+    {
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Get Invoice File').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2432,
+        64
+      ],
+      "id": "ac0ab47d-eea0-4a8d-8fb1-4d134f3d1b6a",
+      "name": "Delete Invoice Doc"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "manual review",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1760,
+        448
+      ],
+      "id": "9348a071-6fab-41d2-b15c-633025321559",
+      "name": "Manual Review"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_FILE_ID",
+          "mode": "list",
+          "cachedResultName": "DEEH 2025",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 123870600,
+          "mode": "list",
+          "cachedResultName": "DEEH CHECKING 2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_FILE_ID/edit#gid=123870600"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "DATE",
+              "displayName": "DATE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "W/D",
+              "displayName": "W/D",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PAYER/PAYEE",
+              "displayName": "PAYER/PAYEE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CATEGORY",
+              "displayName": "CATEGORY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DESCRIPTION",
+              "displayName": "DESCRIPTION",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " DEPOSITS ",
+              "displayName": " DEPOSITS ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " WITHDRAWL ",
+              "displayName": " WITHDRAWL ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " BALANCE ",
+              "displayName": " BALANCE ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1760,
+        256
+      ],
+      "id": "291a3379-f462-4852-a193-d0491ccd1fd3",
+      "name": "Update Paid"
+    },
+    {
+      "parameters": {
+        "sendTo": "name@example.com",
+        "subject": "hello",
+        "message": "manual review",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        448
+      ],
+      "id": "1634e7cd-e68c-4dfc-b01d-b6d787cc7714",
+      "name": "Manual Review Needed"
+    },
+    {
+      "parameters": {
+        "sendTo": "name@example.com",
+        "subject": "Automatig complete",
+        "message": "auomation complete",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        256
+      ],
+      "id": "a92bef10-cfcf-49c3-85fa-02185a423a2a",
+      "name": "Automation Complete"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Automation Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stringyfy data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Plaid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plaid": {
+      "main": [
+        [
+          {
+            "node": "Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logic": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Update Paid",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read checking": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read clients": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update sheet": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Clients": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update checking": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Clients": {
+      "main": [
+        [
+          {
+            "node": "Data Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Prep": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stringyfy data": {
+      "main": [
+        [
+          {
+            "node": "Get Invoice File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Invoice": {
+      "main": [
+        [
+          {
+            "node": "Convert to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Invoice File": {
+      "main": [
+        [
+          {
+            "node": "Create Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to PDF": {
+      "main": [
+        [
+          {
+            "node": "Rename file to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rename file to PDF": {
+      "main": [
+        [
+          {
+            "node": "Create a Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a Draft": {
+      "main": [
+        [
+          {
+            "node": "Delete Invoice Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Invoice Doc": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Manual Review Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Paid": {
+      "main": [
+        [
+          {
+            "node": "Automation Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": []
+}

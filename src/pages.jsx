@@ -5,6 +5,7 @@ import homeCover from './assets/hero-cover.jpg'
 import workCover from './assets/cover-work.jpg'
 import aboutCover from './assets/cover-about.jpg'
 import contactCover from './assets/cover-contact.jpg'
+import Workflows from './Workflow.jsx'
 import art1 from './assets/art-1.jpg'
 import art2 from './assets/art-2.jpg'
 import art3 from './assets/art-3.jpg'
@@ -21,6 +22,18 @@ function Cover({ src, alt, pos, children }) {
 }
 function T({ tag: Tag = 'span', s = 2, c, ls, className = '', style, children }) {
   return <Tag className={'t ' + className} style={{ fontSize: s + 'cqw', color: c, letterSpacing: ls, ...style }}>{children}</Tag>
+}
+
+function CV() {
+  return (
+    <section><div className="wrap cv">
+      <div><h2>My CV</h2><p className="lead">My experience, tools and client work in one PDF. Read it in your browser or save a copy.</p></div>
+      <div className="btns">
+        <a className="btn main" href={SITE.cv} target="_blank" rel="noopener">View CV</a>
+        <a className="btn" href={SITE.cv} download="Siyam-CV.pdf">Download CV</a>
+      </div>
+    </div></section>
+  )
 }
 
 function Flow({ steps }) {
@@ -73,6 +86,7 @@ export function Home() {
         <Rows list={projects.slice(0, 3)} />
         <p className="more"><Link to="/work">All {projects.length} projects</Link></p>
       </div></section>
+      <CV />
       <section><div className="wrap">
         <h2>Tools I connect</h2>
         <div className="tools">{tools.map(t => <span key={t}>{t}</span>)}</div>
@@ -109,10 +123,11 @@ export function Project() {
       <Link to="/work" className="back">Back to work</Link>
       <div className="phead">
         <div><h1 className="page">{p.title}</h1><p className="lead">{p.summary}</p></div>
-        <img className="art" src={arts[i]} alt="" />
+        <img className="art" src={arts[i % arts.length]} alt="" />
       </div>
       <div className="narrow">
         <Flow steps={p.flow} />
+        <Workflows items={p.workflows || []} />
         <h2>The problem</h2>
         <p>{p.problem}</p>
         <h2>What I built</h2>
@@ -120,6 +135,7 @@ export function Project() {
         {p.hard.length > 0 && (<><h2>What took work</h2><ul>{p.hard.map(b => <li key={b}>{b}</li>)}</ul></>)}
         <h2>Tools</h2>
         <div className="tools">{p.stack.map(t => <span key={t}>{t}</span>)}</div>
+        {p.repo && <p className="more"><a href={p.repo} target="_blank" rel="noopener">Workflow files on GitHub</a></p>}
         <p className="more">Next project: <Link to={`/work/${next.slug}`}>{next.title}</Link></p>
       </div>
     </div></section>
@@ -148,6 +164,7 @@ export function About() {
         <h2>Tools I connect</h2>
         <div className="tools">{tools.map(t => <span key={t}>{t}</span>)}</div>
       </div></section>
+      <CV />
     </>
   )
 }

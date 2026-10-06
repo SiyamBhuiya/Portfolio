@@ -33,7 +33,7 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-      <footer className="wrap foot">{SITE.name}, {SITE.role.toLowerCase()}. Based in {SITE.location}, working with clients worldwide.</footer>
+      <footer className="wrap foot">{SITE.name}, {SITE.role.toLowerCase()}. Based in {SITE.location}, working with clients worldwide. <a href={SITE.github} target="_blank" rel="noopener">GitHub</a></footer>
     </>
   )
 }

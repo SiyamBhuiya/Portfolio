@@ -79,3 +79,17 @@ input,textarea{font:inherit;color:var(--text);background:var(--panel);border:1px
 .retro{display:block;width:100%;height:auto;border-radius:20px}
 @media (max-width:820px){.phead{grid-template-columns:1fr;gap:8px}.art{aspect-ratio:16/10}}
 @media (max-width:820px){.cover-m{display:block}}
+
+.cv{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+.cv h2{margin:0 0 12px}.cv .lead{margin:0}
+.shot{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line);margin-top:12px}
+
+.wf{margin:28px 0 36px;padding-top:8px}
+.wf h3{font-size:22px;margin:0 0 6px}
+.wfnote{margin:0 0 4px;color:var(--muted)}
+.badge{display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font:500 13px "IBM Plex Sans",sans-serif;vertical-align:3px;color:var(--muted)}
+.shot-btn{display:block;width:100%;padding:0;margin-top:12px;background:none;border:0;cursor:zoom-in}
+.jsonbtns{margin-top:18px}
+.lightbox{position:fixed;inset:0;z-index:50;overflow:auto;background:rgba(5,8,18,.94);padding:64px 20px 24px}
+.lightbox img{display:block;width:max(100%,1200px);height:auto;margin:0 auto;border-radius:10px}
+.lb-close{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:16px}

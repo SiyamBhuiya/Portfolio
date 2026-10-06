@@ -1,0 +1,1882 @@
+{
+  "name": "WhatsApp Media OCR -> Google Sheets (Wassenger)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-trigger",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        192,
+        3232
+      ],
+      "id": "91cfe059-8277-48f1-8a6b-6db4925c1d0e",
+      "name": "Webhook2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst data = body?.data || {};\n\nif (!data || (!data.body && !data.media)) {\n  return [{ json: { hasMessage: false } }];\n}\n\nconst media = data.media || null;\n\nreturn [{\n  json: {\n    hasMessage: true,\n    from: data.fromNumber || data.from || '',\n    contactName: data.chat?.contact?.name || data.chat?.name || '',\n    messageType: media ? 'attachment' : 'text',\n    textBody: data.body || media?.caption || '',\n    mimeType: media?.mime || media?.mimetype || media?.mimeType || null,\n    filename: media?.filename || null,\n    messageId: data.id || null,\n    deviceId: body?.device?.id || null,\n    chatId: data.chat?.id || null\n  }\n}];"
+      },
+      "id": "2b43fe3d-05c4-4d08-b32f-f5c18f8a6e12",
+      "name": "Extract Message2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        3232
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.messageType}}",
+              "rightValue": "attachment",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "b3c38f29-b544-40a2-b210-c6c1143d4a47",
+      "name": "Has Attachment?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        864,
+        3136
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.mediaUrl}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "15221a9f-7ae3-4b45-a743-149dee2bacd4",
+      "name": "Download Media (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2112,
+        3536
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse and normalize the client/document extraction JSON from the OpenAI node's reply.\n// Handles the several possible output shapes the langchain OpenAI node can return.\n\nconst input = $input.first().json;\n\nlet raw =\n  input.output?.[0]?.content?.find(part => part?.type === 'output_text' || part?.type === 'text')?.text ??\n  input.output?.[0]?.content?.[0]?.text ??\n  input.choices?.[0]?.message?.content ??\n  input.output_text ??\n  input.text ??\n  input.message?.content ??\n  input.content ??\n  '';\n\nif (typeof raw === 'object' && raw !== null) raw = JSON.stringify(raw);\nraw = String(raw || '').trim();\nconst originalRaw = raw;\n\nraw = raw.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) raw = raw.slice(firstBrace, lastBrace + 1);\n\nlet parsed = null;\nlet parseError = null;\nlet parseRepaired = false;\n\ntry {\n  parsed = JSON.parse(raw);\n} catch (firstError) {\n  parseError = firstError.message;\n  let repaired = raw\n    .replace(/(:\\s*)(\\d{4}-\\d{2}-\\d{2})(?=\\s*[,}\\]])/g, '$1\"$2\"')\n    .replace(/,\\s*([}\\]])/g, '$1')\n    .replace(/[\\u201c\\u201d]/g, '\"')\n    .replace(/[\\u2018\\u2019]/g, \"'\");\n  try {\n    parsed = JSON.parse(repaired);\n    parseRepaired = true;\n    parseError = null;\n    raw = repaired;\n  } catch (secondError) {\n    parseError = `Initial parse error: ${firstError.message}. Repair parse error: ${secondError.message}`;\n  }\n}\n\nif (!parsed || typeof parsed !== 'object') {\n  parsed = { client_name: null, company_or_organization: null, document_type: null, document_date: null, amount: null, currency: null, summary: null };\n  parseError = parseError || 'The AI response could not be parsed.';\n}\n\nlet amount = parsed.amount;\nif (typeof amount === 'string') {\n  const cleaned = amount.replace(/[^0-9.\\-]/g, '');\n  amount = cleaned ? Number(cleaned) : null;\n}\nif (typeof amount !== 'number' || Number.isNaN(amount)) amount = null;\n\nconst msg = $('Extract Message2').first().json || {};\n\nreturn [{\n  json: {\n    received_at: new Date().toISOString(),\n    whatsapp_from: msg.from ?? '',\n    contact_name: msg.contactName ?? '',\n    filename: msg.filename ?? '',\n    mime_type: msg.mimeType ?? '',\n    caption_text: msg.textBody ?? '',\n    client_name: parsed.client_name ?? '',\n    company_or_organization: parsed.company_or_organization ?? '',\n    document_type: parsed.document_type ?? 'Other',\n    document_date: parsed.document_date ?? null,\n    amount: amount ?? 0,\n    currency: parsed.currency ?? '',\n    summary: parsed.summary ?? '',\n    parse_success: parseError === null,\n    parse_repaired: parseRepaired,\n    parse_error: parseError,\n    raw_ai_response: parseError ? originalRaw : '',\n    extracted_document: parsed,\n  },\n}];\n"
+      },
+      "id": "5cdcc837-4d26-45d5-a285-98c43a72c6e1",
+      "name": "Parse OpenAI Result2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        3536
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \n  phone: $('Extract Message2').first().json.from, \n  message: `✅ Here's what I extracted from your ${$('Extract Message2').first().json.filename || 'file'}:\\n\\n` + \n           `*Type:* ${$('Parse OpenAI Result2').first().json.document_type || 'N/A'}\\n` + \n           ($('Parse OpenAI Result2').first().json.company_or_organization ? `*From:* ${$('Parse OpenAI Result2').first().json.company_or_organization}\\n` : '') + \n           ($('Parse OpenAI Result2').first().json.document_date ? `*Date:* ${$('Parse OpenAI Result2').first().json.document_date}\\n` : '') + \n           ($('Parse OpenAI Result2').first().json.amount ? `*Amount:* ${$('Parse OpenAI Result2').first().json.amount} ${$('Parse OpenAI Result2').first().json.currency || ''}\\n` : '') + \n           `\\n*Summary:*\\n${$('Parse OpenAI Result2').first().json.summary || 'N/A'}\\n\\n` + \n           `I've also logged this to Notion. ✅`, \n  device: $('Extract Message2').first().json.deviceId \n}) }}",
+        "options": {}
+      },
+      "id": "51f9256d-2eaf-429a-8b38-611800f3bca9",
+      "name": "Confirm Processed (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3808,
+        3536
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.from || $json.whatsapp_from || $('Extract Message2').first().json.from, message: `Hi ${$json.contactName || 'there'}! \\ud83d\\udc4b Send me a photo or PDF of an invoice, form, or meeting notes and I'll pull out the key details for you.`, device: $json.deviceId || $('Extract Message2').first().json.deviceId }) }}",
+        "options": {}
+      },
+      "id": "705182d8-9853-4dcf-a5eb-8a2c8ce8a749",
+      "name": "Send Greeting (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "Clients",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "title": "={{ $json.client_name || $json.filename || 'WhatsApp Document' }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Patient Name|title",
+              "title": "={{ $json.client_name }}"
+            },
+            {
+              "key": "Hospital Name/Clinic Name|rich_text",
+              "textContent": "={{ $json.company_or_organization }}"
+            },
+            {
+              "key": "Total bill Amount|number",
+              "numberValue": "={{ $json.amount }}"
+            },
+            {
+              "key": "Date of Visit|date",
+              "date": "={{ $json.document_date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        3584,
+        3536
+      ],
+      "id": "8a071a89-60b4-49c0-b820-7ec0410c3006",
+      "name": "Log to Client Database2",
+      "notesInFlow": true,
+      "notes": "CLIENT DATABASE. Property keys must match your Notion 'Client Database' columns exactly (see schema provided)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const textBody = $json.textBody || '';\n\nconst prompt = `You are an intent classifier for a WhatsApp business assistant. The sender previously interacted with this system, and just sent this follow-up message:\n\n\"${textBody}\"\n\nDecide:\n1. \"hasInstruction\": true if the message contains an actionable request (not just a greeting, thanks, or small talk), otherwise false.\n2. \"taskType\": exactly one of \"Send Email\", \"Create Task\", \"Book Meeting\", \"Give Summary\", \"General Task\".\n\nUse \"Give Summary\" whenever the sender is ASKING FOR INFORMATION rather than asking you to DO something new. This includes (but is not limited to):\n- Asking about a specific client/patient/customer: \"give me a summary of [name]\", \"what's the status on [name]\", \"tell me about [name]'s case\"\n- Asking about their own upcoming meeting/appointment/schedule: \"when is my next meeting\", \"do I have anything booked\", \"what time is my appointment\"\n- Asking for counts, lists, or overviews: \"how many clients have meetings this month\", \"who's coming up this week\", \"list my pending clients\"\n- Vague info requests: \"any updates?\", \"what's going on with this one\", \"recap please\", \"fill me in\"\n- Any question phrased as a question (ends in \"?\", starts with who/what/when/where/how/why/is/are/do/does/did) that is asking to RETRIEVE existing information rather than create something new.\n\nUse \"Book Meeting\" when the sender is instructing you to schedule, book, or set up a meeting/appointment/call with a specific client, on a specific or roughly-specific date or timeframe. Examples:\\n- \"book a meeting with [name] next Tuesday afternoon\"\\n- \"schedule John in for Thursday morning\"\\n- \"set up a call with [name] sometime this week\"\\n- \"get [name] booked in as soon as possible\"\\nThis takes priority over \"Create Task\" whenever the instruction is specifically about scheduling a meeting/appointment/call - do NOT classify meeting-booking requests as \"Create Task\", even though \"reschedule [name]'s meeting\" looks similar to the Create Task examples below. The distinguishing test: if fulfilling the request means finding an open time slot and putting something on the calendar, it is \"Book Meeting\", not \"Create Task\".\\n\\nUse \"Create Task\" ONLY when the sender is asking a HUMAN SECRETARY to physically do something real-world that a database lookup cannot answer. This means an actionable, concrete instruction with a clear real-world action to perform, such as:\n- \"call [name] and confirm the meeting\"\n- \"prepare the documents for tomorrow's appointment\"\n- \"remind me to follow up with [name] next week\"\n- \"book a courier to send [name] their papers\"\n- \"reschedule [name]'s meeting to next Friday\"\n- \"reach out to [name] about the overdue invoice\"\nThe defining test for \"Create Task\": would a human secretary need to physically do something, contact someone, or take a real-world action to fulfill this? If yes, it's \"Create Task\". If the request could be satisfied purely by looking up existing data and reporting it back, it is NOT \"Create Task\" - use \"Give Summary\" or \"General Task\" instead.\n\nUse \"General Task\" when hasInstruction is true, but the message does not clearly fit \"Send Email\", \"Create Task\", or \"Give Summary\" - including messages that are ambiguous, unclear, or could plausibly be answered by checking existing records even if not phrased as a direct question (e.g. \"let me know about [name]\", \"check on this one\", \"what's happening here\"). When in doubt between \"Create Task\" and \"General Task\", prefer \"General Task\" - it will be checked against the database first before anything is escalated to a human.\n\nDo NOT use \"Give Summary\" or \"General Task\" for messages that clearly ask you to send an email or perform a real-world secretary action - those go to \"Send Email\" or \"Create Task\" respectively. If the message both asks a question AND asks for a real action (e.g. \"what's the status, and also call them to confirm\"), classify by the PRIMARY intent - the action being requested, not the informational framing around it.\n\nIf taskType is \"Send Email\", also extract:\n- \"emailAddress\": the recipient's email address if one appears in the message, else null.\n- \"emailCategory\": one of \"Credit Card Issue\", \"Client Issue\", \"Invoice Info\", or \"General\".\n- \"emailMode\": \"send\", \"draft\", or \"both\". Default \"send\" if not specified.\n- \"emailContext\": a clean rewrite of what the email should say, labels stripped out.\n- \"recipientName\": the name of the CLIENT/PATIENT/CUSTOMER the email concerns, if named. Use null if not mentioned.\n\nIf taskType is \"Book Meeting\", also extract:\n- \"recipientName\": the name of the client the meeting is being booked with. This should almost always be present for Book Meeting - use null only if truly no name was given.\n\nIf taskType is \"Give Summary\" or \"General Task\", also extract:\n- \"recipientName\": the name of the specific client/patient the question is about, if one is named (e.g. \"summary of John Doe\" -> \"John Doe\"). Use null if the question is about the sender's own record, or is a general/broad question with no specific person named.\n\nIf taskType is \"Create Task\", also extract:\n- \"recipientName\": the name of the client/patient the task concerns, if named. Use null if not mentioned.\n- \"emailContext\": a clean rewrite of the task instruction, describing exactly what the secretary needs to do.\n\nIf taskType is neither \"Send Email\", \"Give Summary\", \"General Task\", nor \"Create Task\" needing these fields, set emailAddress, emailCategory, emailMode, emailContext, and recipientName to null as applicable.\n\nReturn ONLY valid JSON, no markdown, no code fences, in exactly this shape:\n{\"hasInstruction\": true, \"taskType\": \"...\", \"emailAddress\": null, \"emailCategory\": null, \"emailMode\": null, \"emailContext\": null, \"recipientName\": null}`;\n\nconst input = $json;\n\nreturn [{\n  json: {\n    ...input,\n    prompt: prompt\n  }\n}];"
+      },
+      "id": "0cb270f2-bb89-4d45-8509-e027909bed1d",
+      "name": "Prepare Classification Prompt2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasInstruction }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "YOUR_NOTION_ID"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "687fc11b-b845-492f-90e3-67e06147cae6",
+      "name": "Has Instruction?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        2864
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "Tasks01",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "title": "={{ $json.taskType }} - {{ $json.contactName || $json.contact_name || $json.from || $json.whatsapp_from }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Title|title",
+              "title": "={{ $json.taskDescription }}"
+            },
+            {
+              "key": "Status|status",
+              "statusValue": "In progress"
+            },
+            {
+              "key": "Person|people"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ca95cadb-e0a8-40e0-8eff-083df173485f",
+      "name": "Create Secretary Task2",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3808,
+        3248
+      ],
+      "notes": "SECRETARY TASK DATABASE. Replace dataSourceId with your real Secretary Task DB, and make sure column names match (see schema provided)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const a = $('Prepare Action Data2').first().json; return JSON.stringify({ phone: '+10000000000', message: `New task: ${a.taskType}\\n` + `Client: ${a.contactName || a.contact_name || 'Unknown'} (${a.from || a.whatsapp_from || ''})\\n` + `Details: ${a.taskDescription || ''}\\n` + ((a.filename) ? `Document: ${a.filename}\\n` : '') + `Status: Not Started\\n\\nUpdate the status in Notion once done.`, device: a.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "43665e78-d2d1-4f53-b704-310bc7d91801",
+      "name": "Notify Secretary (WhatsApp)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4096,
+        3248
+      ],
+      "notes": "Replace 'REPLACE_WITH_SECRETARY_PHONE_NUMBER' with the secretary's WhatsApp number (Wassenger format, e.g. '8801XXXXXXXXX', no plus sign)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const a = $('Prepare Action Data2').first().json; return JSON.stringify({ phone: a.from || a.whatsapp_from || $('Extract Message2').first().json.from, message: `Got it! I've created a *${a.taskType}* task for the secretary:\\n\\n\\\"${a.taskDescription}\\\"\\n\\nI'll let you know when it's marked done.`, device: a.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "16576083-c75c-4c5d-9e26-2c4486d86463",
+      "name": "Confirm Task Created (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4384,
+        3248
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "Clients",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": []
+        },
+        "options": {}
+      },
+      "id": "acc08001-501b-497d-82e0-10cdc5a4404b",
+      "name": "Get Last Saved Record2",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        2784,
+        3248
+      ],
+      "notes": "Looks up the most recent Client DB entry for this WhatsApp number. NOTE: open this node in the n8n UI once and re-pick the filter/sort fields from the dropdowns — the exact filter/sort JSON shape can differ slightly by n8n version, so this is a best-effort starting config."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the classified instruction with the last saved document for this contact.\nconst classify = $('Parse Classification Result2').first().json;\nconst page = $input.first().json || {};\n\n// Actual Notion \"getAll\" output shape for this node/version: flattened,\n// snake_case, prefixed with \"property_\" (confirmed from live output):\n//   property_patient_name, property_hospital_name_clinic_name,\n//   property_total_bill_amount, property_date_of_visit\n// Also keep a couple of fallbacks in case the node version/shape changes.\nconst props = page.property || page.properties || page;\n\nconst lastClientName = props.property_patient_name || props.name || props['Patient Name']\n  || props.patient_name || classify.recipientName || classify.contactName\n  || classify.contact_name || 'the client';\nconst lastCompany   = props.property_hospital_name_clinic_name || props['Hospital Name/Clinic Name']\n  || props.company_or_organization || '';\nconst lastDocType   = props.property_document_type || props['Document Type'] || '';\nconst lastAmount    = props.property_total_bill_amount || props['Total bill Amount']\n  || props.amount || '';\nconst lastCurrency  = props.property_currency || props['Currency'] || '';\nconst lastDocDate   = props.property_date_of_visit?.start || props.property_date_of_visit\n  || props['Date of Visit'] || props.document_date || '';\nconst lastSummary   = props.property_document_summary || props['Document Summary'] || props.summary\n  || (lastClientName !== 'the client'\n        ? `Invoice on file for ${lastClientName}${lastCompany ? ' at ' + lastCompany : ''}${lastAmount ? ', total bill amount ' + lastAmount : ''}${lastDocDate ? ' dated ' + lastDocDate : ''}.`\n        : 'No saved document was found for this contact yet.');\n\nreturn [{\n  json: {\n    ...classify,\n    lastClientName,\n    lastCompany,\n    lastDocType,\n    lastSummary,\n    lastAmount,\n    lastCurrency,\n    lastDocDate,\n  },\n}];"
+      },
+      "id": "71004234-3a1a-4397-9f81-1b4c83043bbe",
+      "name": "Prepare Action Data2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3072,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.taskType }}",
+              "rightValue": "Send Email",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "YOUR_NOTION_ID"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "234c3fa3-4567-4a20-923f-068554aa24ed",
+      "name": "Is Send Email?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.taskType }}",
+              "rightValue": "Create Task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "YOUR_NOTION_ID"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63a793de-30c1-4190-bba5-c8bbbaba13e0",
+      "name": "Is Create Task?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        3248
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const e = $('Parse Email JSON2').first().json; return JSON.stringify({ phone: e.from || e.whatsapp_from || $('Extract Message2').first().json.from, message: `\\u2705 Email sent to *${e.emailAddress}* (${e.emailCategory || 'General'}) regarding *${e.lastClientName}*.\\n\\n*Subject:* ${e.emailSubject}`, device: e.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "89d6542b-a53c-4f29-a319-1015cda04fc7",
+      "name": "Confirm Email Sent (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5056,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 8
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1088,
+        3712
+      ],
+      "id": "de6b944a-6f2a-4396-890b-60d4b725b044",
+      "name": "Wait2"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.wassenger.com/v1/chat/{{$('Extract Message2').first().json.deviceId}}/messages/{{$('Extract Message2').first().json.messageId}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "02621372-bd16-4f94-b3ef-be322ee2b77d",
+      "name": "Check Media Status2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1376,
+        3712
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check whether Wassenger has finished processing the media and produced a download link.\nconst msg = $input.first().json;\nconst media = msg.media || {};\nconst downloadPath = media?.links?.download;\nconst orig = $('Extract Message2').first().json;\n\nlet retryCount = 0;\ntry {\n  retryCount = $input.first().json.retryCount ?? orig.retryCount ?? 0;\n} catch (e) {\n  retryCount = 0;\n}\n\nif (downloadPath) {\n  return [{ json: { ...orig, mediaUrl: `https://api.wassenger.com${downloadPath}`, mediaReady: true, retryCount } }];\n}\n\nreturn [{ json: { ...orig, mediaReady: false, retryCount: retryCount + 1 } }];\n"
+      },
+      "id": "3e9989fe-2fad-4743-8f8b-237e48726431",
+      "name": "Extract Download URL2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.mediaReady}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1f2ec7d-749f-4b45-bb4e-e7104d59b96b",
+      "name": "Media Ready?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1888,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.retryCount}}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bf974f46-63fe-4816-b570-a3cd908b284c",
+      "name": "Under Retry Limit?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        3728
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "a9d18be0-4647-4331-b05c-d876e1d9e484",
+      "name": "Wait Before Retry2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2336,
+        3760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.from || $json.whatsapp_from || $('Extract Message2').first().json.from, message: \"Your file is taking longer than usual to process \\u2014 I'll follow up as soon as it's ready. \\ud83d\\ude4f\", device: $json.deviceId || $('Extract Message2').first().json.deviceId }) }}",
+        "options": {}
+      },
+      "id": "ca3f3105-5889-407e-9d8e-c1eed76ba13f",
+      "name": "Media Timeout Message2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2336,
+        3952
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$('Extract Message2').first().json.mimeType || ''}}",
+              "rightValue": "^image/",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "9438a0d7-0b39-4416-bc7b-6176a5f1aab3",
+      "name": "Is Image?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        3536
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "50fd722f-40e1-4cf3-ab9c-8cc973e8745d",
+      "name": "Extract Text (PDF/Doc)2",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const basePrompt = `You are a document extraction engine. Look at the main, frontmost document and extract:\n\n1. client_name - the name of the person/client the document is about or addressed to.\n2. company_or_organization - the company, hospital, clinic, vendor, or organization that issued the document.\n3. document_type - one of: Invoice, Receipt, Bill, ID, Contract, Form, Other.\n4. document_date - the main relevant date (visit, invoice, or issue date), normalized to YYYY-MM-DD if possible.\n5. amount - the total amount on the document as a plain number (no currency symbols/commas), or null if not applicable.\n6. currency - a 3-letter currency code or symbol if visible, otherwise null.\n7. summary - a 1-2 sentence plain-language summary of what this document is.\n\nRULES:\n- Use null for any field that cannot genuinely be found. Do not guess.\n- amount must be a JSON number (not a string), or null.\n- Return only valid JSON, no markdown or code fences.\n\nReturn exactly this JSON structure:\n{\n  \"client_name\": null,\n  \"company_or_organization\": null,\n  \"document_type\": null,\n  \"document_date\": null,\n  \"amount\": null,\n  \"currency\": null,\n  \"summary\": null\n}`;\n\n// Image branch: build a base64 data URL for the langchain OpenAI node's image input\nconst extractedMessage = $('Extract Message2').first().json || {};\nlet mimeType = String(extractedMessage.mimeType || '').trim().toLowerCase();\nlet filename = String(extractedMessage.filename || '').trim();\n\nconst item = $input.first();\nconst binaryKeys = Object.keys(item.binary || {});\nif (binaryKeys.length === 0) {\n  throw new Error('No binary file was found in the input item.');\n}\nconst binaryPropertyName = binaryKeys[0];\nconst buffer = await this.helpers.getBinaryDataBuffer(0, binaryPropertyName);\nif (!buffer || buffer.length === 0) {\n  throw new Error('The downloaded file is empty.');\n}\nconst base64 = buffer.toString('base64');\n\nif (!mimeType) {\n  const extension = filename.split('.').pop()?.toLowerCase();\n  const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };\n  mimeType = mimeMap[extension] || 'image/jpeg';\n}\nif (!filename) filename = mimeType === 'image/png' ? 'document.png' : 'document.jpg';\n\nreturn [{\n  json: {\n    prompt: basePrompt,\n    imageDataUrl: `data:${mimeType};base64,${base64}`,\n    attachmentType: 'image',\n    mimeType,\n    filename\n  }\n}];\n"
+      },
+      "id": "7d445eff-4bb9-462d-be96-0881cb87b222",
+      "name": "Prepare AI Prompt (Image)2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        3440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const basePrompt = `You are a document extraction engine. Look at the main, frontmost document and extract:\n\n1. client_name - the name of the person/client the document is about or addressed to.\n2. company_or_organization - the company, hospital, clinic, vendor, or organization that issued the document.\n3. document_type - one of: Invoice, Receipt, Bill, ID, Contract, Form, Other.\n4. document_date - the main relevant date (visit, invoice, or issue date), normalized to YYYY-MM-DD if possible.\n5. amount - the total amount on the document as a plain number (no currency symbols/commas), or null if not applicable.\n6. currency - a 3-letter currency code or symbol if visible, otherwise null.\n7. summary - a 1-2 sentence plain-language summary of what this document is.\n\nRULES:\n- Use null for any field that cannot genuinely be found. Do not guess.\n- amount must be a JSON number (not a string), or null.\n- Return only valid JSON, no markdown or code fences.\n\nReturn exactly this JSON structure:\n{\n  \"client_name\": null,\n  \"company_or_organization\": null,\n  \"document_type\": null,\n  \"document_date\": null,\n  \"amount\": null,\n  \"currency\": null,\n  \"summary\": null\n}`;\n\n// PDF/Doc branch: text was already pulled out upstream by \"Extract Text (PDF/Doc)\"\nconst extractedMessage = $('Extract Message2').first().json || {};\nconst extractedText = $json.text || $json.data || '';\n\nreturn [{\n  json: {\n    prompt: basePrompt + `\\n\\nHere is the extracted document text:\\n\\n${extractedText}`,\n    imageDataUrl: null,\n    attachmentType: (extractedMessage.mimeType || '').includes('pdf') ? 'pdf' : 'doc',\n    mimeType: extractedMessage.mimeType || '',\n    filename: extractedMessage.filename || ''\n  }\n}];\n"
+      },
+      "id": "fbcf841d-22a5-46d9-b252-7d6685302489",
+      "name": "Prepare AI Prompt (Text)2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.prompt }}"
+            },
+            {
+              "type": "image",
+              "imageUrl": "={{ $json.imageDataUrl }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        3008,
+        3440
+      ],
+      "id": "fafd7d50-f8cf-4802-96c7-258c31de43f0",
+      "name": "Message a model (Image)2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        3008,
+        3632
+      ],
+      "id": "3fa4badc-6915-4bdd-8091-4c42ff8d4e8d",
+      "name": "Message a model (Text)2"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.emailAddress }}",
+        "subject": "={{ $json.emailSubject }}",
+        "message": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "4c81a401-b57d-4b07-a624-b970b4b8acf5",
+      "name": "Send Email (Gmail)2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        4832,
+        2864
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.emailAddress }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8de2af38-11a1-4e44-ba18-ed79000469c4",
+      "name": "Has Email Address?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.from || $json.whatsapp_from || $('Extract Message2').first().json.from, message: `I can send that email, but I need the recipient's address first.\\n\\nPlease reply like this:\\n\\n*Send Email*\\n*To:* name@example.com\\n*Category:* Credit Card Issue / Client Issue / Invoice Info\\n*Context:* what the email should say`, device: $json.deviceId || $('Extract Message2').first().json.deviceId }) }}",
+        "options": {}
+      },
+      "id": "908aabf7-ed73-407a-9933-d8cd9bf6a5e0",
+      "name": "Request Email Address (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3808,
+        2864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a prompt for GPT to draft a professional, internal, company-facing email.\n// This email goes to a COMPANY address (given by the client in the WhatsApp\n// message), never to the end customer directly.\n\nconst p = $json;\n\nconst contextParts = [];\nif (p.lastClientName && p.lastClientName !== 'the client') contextParts.push(`Recipient/client name to use in the greeting: ${p.lastClientName}`);\nif (p.lastCompany) contextParts.push(`Company: ${p.lastCompany}`);\nif (p.lastDocType) contextParts.push(`Document type: ${p.lastDocType}`);\nif (p.lastDocDate) contextParts.push(`Document date: ${p.lastDocDate}`);\nif (p.lastAmount) contextParts.push(`Amount: ${p.lastAmount} ${p.lastCurrency || ''}`);\nif (p.lastSummary) contextParts.push(`Last saved document summary: ${p.lastSummary}`);\n\nconst referenceInfo = contextParts.length\n  ? contextParts.join('\\n')\n  : 'No saved document is on file for this contact yet — do not invent one.';\n\nconst instruction = p.emailContext || p.taskDescription || '';\n\n// Category-specific guidance. The recipient address is always whatever the\n// client provided — categories only change tone/structure, not routing.\nconst categoryGuidance = {\n  'Credit Card Issue':\n    'This is about a credit card / payment / transaction problem. Be precise and factual about the issue described. ' +\n    'Do NOT invent card numbers, transaction IDs, or amounts that were not given to you — ask the recipient to verify against internal records if specifics are missing. Keep a calm, matter-of-fact tone appropriate for a payments team.',\n  'Client Issue':\n    'This is a client complaint or problem that needs internal attention. Use an empathetic but professional tone, clearly state what the client reported, and make the urgency/impact clear so the reader understands why it needs prompt attention.',\n  'Invoice Info':\n    'This is about invoice/billing information. Reference the specific invoice details provided (amount, date, document type) accurately. Be concise and businesslike — this is a routine informational or follow-up email.',\n  'General':\n    'No specific category was given — write a clear, professional email based on the instruction and reference information below.'\n};\nconst guidance = categoryGuidance[p.emailCategory] || categoryGuidance['General'];\n\nconst prompt = `You are drafting a professional, internal business email on behalf of ${p.contactName || 'a team member'}. This email is ALWAYS sent to a colleague or department inside our own company (e.g. billing, support, accounts) about a client's situation — it is NEVER sent to the client/customer themselves. Write it the way a staff member would write to a coworker: clear, courteous, and to the point, with enough client context that the reader immediately understands who this is about and what's needed from them.\n\nEmail category: ${p.emailCategory || 'General'}\n${guidance}\n\nInstruction received over WhatsApp:\n\"${instruction}\"\n\nReference information that may be relevant (use only what actually helps; ignore what doesn't):\n${referenceInfo}\n\nWrite a concise, professional email that fulfils the instruction above. Return ONLY valid JSON, with no markdown formatting and no code fences, in exactly this shape:\n{\"subject\": \"...\", \"body\": \"...\"}\n\nRules:\n- \"body\" is plain text (no markdown), opens with an appropriate greeting, and closes with a professional sign-off.\n- Do not invent facts, amounts, dates, or names that are not present in the instruction or the reference information.\n- Keep it focused and no longer than necessary to convey the request clearly.\n- Open the body by clearly identifying the client and, briefly, their situation (e.g. \"I'm reaching out regarding [client], who is experiencing [issue].\") before making the request — the reader should not have to guess who this is about.\n- If a recipient/client name is given above, use it in the greeting (e.g. \"Hello John,\"). If no name is given, use a generic greeting (e.g. \"Hello,\" or \"Hi team,\") — never write a placeholder like \"[Recipient's Name]\" or \"[Client Name]\".`;\n\nreturn [{ json: { ...p, emailPrompt: prompt } }];"
+      },
+      "id": "5c4900b1-fde3-4c2a-b24c-3dcd47231699",
+      "name": "Prepare Email Prompt2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.emailPrompt }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "d4b423b2-4c23-44e5-9aed-dcfedc40f014",
+      "name": "Generate Email Content2",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        4032,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Robustly parse the {subject, body} JSON returned by \"Generate Email Content\".\nconst input = $input.first().json;\n\nlet raw =\n  input.output?.[0]?.content?.find(part => part?.type === 'output_text' || part?.type === 'text')?.text ??\n  input.output?.[0]?.content?.[0]?.text ??\n  input.choices?.[0]?.message?.content ??\n  input.output_text ??\n  input.text ??\n  input.message?.content ??\n  input.content ??\n  '';\n\nif (typeof raw === 'object' && raw !== null) raw = JSON.stringify(raw);\nraw = String(raw || '').trim();\n\nraw = raw.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) raw = raw.slice(firstBrace, lastBrace + 1);\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = null;\n}\n\nconst carry = $('Prepare Email Prompt2').first().json;\n\nreturn [{\n  json: {\n    ...carry,\n    emailSubject: (parsed && parsed.subject) || `Update regarding ${carry.lastClientName || carry.contactName || 'client'}`,\n    emailBody: (parsed && parsed.body) || raw || carry.emailContext,\n  },\n}];"
+      },
+      "id": "4b70d717-d66d-484d-8824-dcbfdbd73fbe",
+      "name": "Parse Email JSON2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4384,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.emailMode }}",
+              "rightValue": "draft",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "738a2a2d-0357-4eaa-ac7a-43d955962639",
+      "name": "Should Send Email?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4608,
+        2864
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.emailMode }}",
+              "rightValue": "draft",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.emailMode }}",
+              "rightValue": "both",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "3dc83172-bf3c-411f-adf8-6219571e27e4",
+      "name": "Should Create Draft?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4608,
+        3248
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.emailSubject }}",
+        "message": "={{ $json.emailBody }}",
+        "options": {
+          "sendTo": "={{ $json.emailAddress }}"
+        }
+      },
+      "id": "9d84635d-cee3-4090-82be-25405d6f2e02",
+      "name": "Create Draft (Gmail)2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        4832,
+        3248
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const e = $('Parse Email JSON2').first().json; return JSON.stringify({ phone: e.from || e.whatsapp_from || $('Extract Message2').first().json.from, message: `\\ud83d\\udcdd Draft created for *${e.emailAddress}* (${e.emailCategory || 'General'}) regarding *${e.lastClientName}*.\\n\\n*Subject:* ${e.emailSubject}\\n\\nIt's saved in Gmail drafts \\u2014 review it before it goes out.`, device: e.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "df886191-7b72-4f48-99d7-421b3345420f",
+      "name": "Confirm Draft Created (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5056,
+        3152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const e = $('Parse Email JSON2').first().json; return JSON.stringify({ phone: e.from || e.whatsapp_from || $('Extract Message2').first().json.from, message: `\\u26a0\\ufe0f I couldn't send the email to *${e.emailAddress}* regarding *${e.lastClientName}*.\\n\\nError: ${$json.error?.message || 'Unknown error'}\\n\\nPlease check the Gmail connection or try again.`, device: e.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "cada6ff8-70a4-4ab3-a2a7-32b2f1b1c55a",
+      "name": "Alert Send Failed (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5056,
+        2768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.wassenger.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const e = $('Parse Email JSON2').first().json; return JSON.stringify({ phone: e.from || e.whatsapp_from || $('Extract Message2').first().json.from, message: `\\u26a0\\ufe0f I couldn't create the draft for *${e.emailAddress}* regarding *${e.lastClientName}*.\\n\\nError: ${$json.error?.message || 'Unknown error'}\\n\\nPlease check the Gmail connection or try again.`, device: e.deviceId || $('Extract Message2').first().json.deviceId }); })() }}",
+        "options": {}
+      },
+      "id": "9b75e825-1187-4f80-8a87-05c02e1c7053",
+      "name": "Alert Draft Failed (Wassenger)2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5056,
+        3344
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "50ec81c6-03ba-4c9b-acf8-c570eab17966",
+      "name": "Classify Intent (AI)2",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Robustly parse the intent-classification JSON from \"Classify Intent (AI)\".\nconst input = $input.first().json;\n\nlet raw =\n  input.output?.[0]?.content?.find(part => part?.type === 'output_text' || part?.type === 'text')?.text ??\n  input.output?.[0]?.content?.[0]?.text ??\n  input.choices?.[0]?.message?.content ??\n  input.output_text ??\n  input.text ??\n  input.message?.content ??\n  input.content ??\n  '';\n\nif (typeof raw === 'object' && raw !== null) raw = JSON.stringify(raw);\nraw = String(raw || '').trim();\nraw = raw.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) raw = raw.slice(firstBrace, lastBrace + 1);\n\nlet parsed = null;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = null;\n}\n\nconst carry = $('Prepare Classification Prompt2').first().json;\nconst text = carry.rawText || carry.textBody || carry.caption_text || '';\n\n// Fallback: if the model call or parse failed entirely, don't silently\n// drop the message - mark it as a General Task so a human can still see it.\nlet taskType = (parsed && parsed.taskType) || (text ? 'General Task' : null);\n\n// Normalize away the retired \"Follow Up\" category, in case an older cached\n// prompt or a stale model response still returns it - treat it as Give Summary.\nif (taskType === 'Follow Up') taskType = 'Give Summary';\n\nconst hasInstruction = parsed ? !!parsed.hasInstruction : (text.length > 0);\n\nreturn [{\n  json: {\n    ...carry,\n    hasInstruction,\n    taskType: taskType || 'General Task',\n    taskDescription: text,\n    emailAddress: (parsed && parsed.emailAddress) || null,\n    emailCategory: (parsed && parsed.emailCategory) || 'General',\n    emailMode: (parsed && parsed.emailMode) || 'send',\n    emailContext: (parsed && parsed.emailContext) || text,\n    recipientName: (parsed && parsed.recipientName) || null,\n  },\n}];"
+      },
+      "id": "f2bec8df-c79a-4e9b-a34f-14bc4f5bcfed",
+      "name": "Parse Classification Result2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.recipientName }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "86b9b437-c331-438c-9e3c-7e6f600e60c1",
+      "name": "Has Recipient Name?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "YOUR_NOTION_ID",
+          "mode": "list",
+          "cachedResultName": "Clients",
+          "cachedResultUrl": "https://app.notion.com/p/YOUR_NOTION_ID"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Patient Name|title",
+              "condition": "contains"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d366478-7b0a-45ac-b81c-7ef0c6b36346",
+      "name": "Search Client By Name2",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        2784,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.from }}",
+              "rightValue": "+10000000000",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "YOUR_NOTION_ID"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "063b9972-64f0-459f-bb64-a6f1a4d88833",
+      "name": "Is From Specific Number?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        3232
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "YTXZbQE3kiwPDxRp",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/YTXZbQE3kiwPDxRp",
+          "cachedResultName": "Meeting Reply Handler - Wassenger Inbound"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "6d36a00f-163e-4057-8867-d43aa07d0527",
+      "name": "Route To Meeting Reply Handler2",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        3328
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "VlM83BCTdceNughU",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/VlM83BCTdceNughU",
+          "cachedResultName": "Summary Flow - AI Notion Q&A"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "clientPhone",
+            "clientName",
+            "questionText"
+          ],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "a9b89240-0106-4e91-b33a-c5c65a91a71e",
+      "name": "Route To Summary Flow2",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2336,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "YOUR_NOTION_ID",
+              "leftValue": "={{ $json.taskType }}",
+              "rightValue": "Give Summary",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "YOUR_NOTION_ID",
+              "leftValue": "={{ $json.taskType }}",
+              "rightValue": "General Task",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2112,
+        2768
+      ],
+      "id": "84534f9a-4281-4754-80aa-4d1f1f8b6bf4",
+      "name": "Is Summery Request2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "YOUR_NOTION_ID",
+              "leftValue": "={{ $json.taskType }}",
+              "rightValue": "Book Meeting",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "c847840a-d2da-4189-a0ec-316f0dfd08ad",
+      "name": "Is Meeting Or Client Summary?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1888,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reshape classified instruction data into the field names the\n// Manual Meeting Scheduler's Execute Workflow Trigger expects.\n// Handles both booking requests and named-client summary requests -\n// the scheduler flow uses messageText to tell which one it is.\nconst j = $json;\n\nreturn [{\n  json: {\n    ownerPhone: j.from || j.whatsapp_from || j.contact_name || '',\n    messageText: j.taskDescription || j.rawText || j.textBody || '',\n    recipientNameGuess: j.recipientName || j.contactName || j.contact_name || null,\n  }\n}];"
+      },
+      "id": "de60e9ac-a73d-4fa3-a560-78c3176f5509",
+      "name": "Remap For Scheduler1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        2480
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "clex0lv0ABjObRV3",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/clex0lv0ABjObRV3",
+          "cachedResultName": "Manual Meeting Scheduler - Owner-Instructed Booking"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ownerPhone": "={{ $json.ownerPhone }}",
+            "messageText": "={{ $json.messageText }}",
+            "recipientNameGuess": "={{ $json.recipientNameGuess }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "6b6ecd17-59fc-4283-98d7-8192a5d74118",
+      "name": "Execute Meeting Scheduler1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2336,
+        2480
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Extract Message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message2": {
+      "main": [
+        [
+          {
+            "node": "Is From Specific Number?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachment?2": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Classification Prompt2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media (Wassenger)2": {
+      "main": [
+        [
+          {
+            "node": "Is Image?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OpenAI Result2": {
+      "main": [
+        [
+          {
+            "node": "Log to Client Database2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Client Database2": {
+      "main": [
+        [
+          {
+            "node": "Confirm Processed (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Classification Prompt2": {
+      "main": [
+        [
+          {
+            "node": "Classify Intent (AI)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Instruction?2": {
+      "main": [
+        [
+          {
+            "node": "Has Recipient Name?2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Greeting (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Secretary Task2": {
+      "main": [
+        [
+          {
+            "node": "Notify Secretary (WhatsApp)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Secretary (WhatsApp)2": {
+      "main": [
+        [
+          {
+            "node": "Confirm Task Created (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Saved Record2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Action Data2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Action Data2": {
+      "main": [
+        [
+          {
+            "node": "Is Send Email?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Send Email?2": {
+      "main": [
+        [
+          {
+            "node": "Has Email Address?2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Create Task?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Create Task?2": {
+      "main": [
+        [
+          {
+            "node": "Create Secretary Task2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Secretary Task2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Check Media Status2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Media Status2": {
+      "main": [
+        [
+          {
+            "node": "Extract Download URL2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Download URL2": {
+      "main": [
+        [
+          {
+            "node": "Media Ready?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media Ready?2": {
+      "main": [
+        [
+          {
+            "node": "Download Media (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Under Retry Limit?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under Retry Limit?2": {
+      "main": [
+        [
+          {
+            "node": "Wait Before Retry2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Media Timeout Message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Retry2": {
+      "main": [
+        [
+          {
+            "node": "Check Media Status2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Image?2": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Prompt (Image)2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Text (PDF/Doc)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text (PDF/Doc)2": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Prompt (Text)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Prompt (Image)2": {
+      "main": [
+        [
+          {
+            "node": "Message a model (Image)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Prompt (Text)2": {
+      "main": [
+        [
+          {
+            "node": "Message a model (Text)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model (Image)2": {
+      "main": [
+        [
+          {
+            "node": "Parse OpenAI Result2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model (Text)2": {
+      "main": [
+        [
+          {
+            "node": "Parse OpenAI Result2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (Gmail)2": {
+      "main": [
+        [
+          {
+            "node": "Confirm Email Sent (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Send Failed (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email Address?2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Prompt2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Request Email Address (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Prompt2": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Content2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Content2": {
+      "main": [
+        [
+          {
+            "node": "Parse Email JSON2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email JSON2": {
+      "main": [
+        [
+          {
+            "node": "Should Send Email?2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Should Create Draft?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send Email?2": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Gmail)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Create Draft?2": {
+      "main": [
+        [
+          {
+            "node": "Create Draft (Gmail)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Draft (Gmail)2": {
+      "main": [
+        [
+          {
+            "node": "Confirm Draft Created (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Draft Failed (Wassenger)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Intent (AI)2": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification Result2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification Result2": {
+      "main": [
+        [
+          {
+            "node": "Is Meeting Or Client Summary?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Recipient Name?2": {
+      "main": [
+        [
+          {
+            "node": "Search Client By Name2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Last Saved Record2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Client By Name2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Action Data2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is From Specific Number?2": {
+      "main": [
+        [
+          {
+            "node": "Has Attachment?2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route To Meeting Reply Handler2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Summery Request2": {
+      "main": [
+        [
+          {
+            "node": "Route To Summary Flow2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Instruction?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Meeting Or Client Summary?1": {
+      "main": [
+        [
+          {
+            "node": "Remap For Scheduler1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Summery Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remap For Scheduler1": {
+      "main": [
+        [
+          {
+            "node": "Execute Meeting Scheduler1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": []
+}
